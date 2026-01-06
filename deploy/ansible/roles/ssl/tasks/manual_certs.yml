@@ -1,0 +1,77 @@
+---
+# JHU IT certificate deployment for production
+# Deploys certificates from Ansible vault to server locations
+
+- name: Ensure parent SSL directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /etc/ssl/certs
+    - /etc/ssl/private
+
+- name: Create SSL certificate directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ ssl_cert_path | dirname }}"
+    - "{{ ssl_key_path | dirname }}"
+
+- name: Create SSL chain directory (if chain defined)
+  ansible.builtin.file:
+    path: "{{ ssl_chain_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: vault_ssl_chain is defined
+
+- name: Deploy certificate file from vault
+  ansible.builtin.copy:
+    content: "{{ vault_ssl_cert }}"
+    dest: "{{ ssl_cert_path }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Deploy private key file from vault
+  ansible.builtin.copy:
+    content: "{{ vault_ssl_private_key }}"
+    dest: "{{ ssl_key_path }}"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Deploy CA bundle file from vault (if defined)
+  ansible.builtin.copy:
+    content: "{{ vault_ssl_chain }}"
+    dest: "{{ ssl_chain_path }}"
+    owner: root
+    group: root
+    mode: '0644'
+  when: vault_ssl_chain is defined
+
+- name: Display certificate paths for verification
+  ansible.builtin.debug:
+    msg:
+      - "✅ Certificate files deployed from vault:"
+      - "  Certificate: {{ ssl_cert_path }}"
+      - "  Private Key: {{ ssl_key_path }}"
+      - "  CA Bundle: {{ ssl_chain_path if vault_ssl_chain is defined else '(none)' }}"
+
+- name: Display certificate information
+  ansible.builtin.command:
+    cmd: "openssl x509 -in {{ ssl_cert_path }} -noout -subject -dates -issuer"
+  register: cert_info
+  changed_when: false
+
+- name: Show certificate details
+  ansible.builtin.debug:
+    msg: "{{ cert_info.stdout_lines }}"

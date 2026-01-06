@@ -1,0 +1,354 @@
+{% load humanize %}
+<c-app-page title="{{ file_type.label }} - {{ submission.cohort.name }}" heading="{{ file_type.label }}">
+    <!-- Breadcrumb -->
+    <c-breadcrumbs>
+        <c-breadcrumb-item href="{% url 'cohort_submissions' submission.cohort.id %}">{{ submission.cohort.name }}</c-breadcrumb-item>
+        <c-breadcrumb-item href="{% url 'submission_detail' submission.id %}">Protocol Year {{ submission.protocol_year.year }}</c-breadcrumb-item>
+        <c-breadcrumb-item current="true">{{ file_type.label }}</c-breadcrumb-item>
+    </c-breadcrumbs>
+
+    {% if file_type.description %}
+    <div class="mb-4">
+        <p class="text-gray-600">{{ file_type.description }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Patient File Requirement Warning -->
+    {% if not is_patient_file and not patient_file_exists %}
+    <div class="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <c-icon icon="exclamation-triangle" family="solid" class="h-5 w-5 text-yellow-400" />
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-yellow-800">Patient File Required First</h3>
+                <p class="mt-1 text-sm text-yellow-700">
+                    You must upload the Patient file before you can upload any other file types. 
+                    This ensures proper patient ID validation across all files.
+                </p>
+                <p class="mt-2">
+                    <a href="{% url 'submission_file_manage' submission.id 1 %}" class="text-sm font-medium text-yellow-800 underline hover:text-yellow-900">
+                        Upload Patient File →
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Main Content -->
+        <div class="lg:col-span-2">
+            {% if submission_file.uploaded_file %}
+            <!-- Current Version Card -->
+            <c-card title="Current Version - v{{ submission_file.version }}" class="mb-6" variant="table">
+                <c-data-table>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <c-data-row label="Filename">
+                            <span class="font-mono">{{ submission_file.original_filename }}</span>
+                        </c-data-row>
+                        <c-data-row label="File Size" value="{{ submission_file.file_size|filesizeformat }}" />
+                        <c-data-row label="Uploaded By" value="{{ submission_file.uploaded_by.get_full_name|default:submission_file.uploaded_by.username }}" />
+                        <c-data-row label="Upload Date">
+                            {{ submission_file.uploaded_at|date:"M d, Y g:i A" }} ({{ submission_file.uploaded_at|timesince }} ago)
+                        </c-data-row>
+                        {% if submission_file.file_hash %}
+                        <c-data-row label="SHA-256 Hash">
+                            <span class="font-mono text-xs">{{ submission_file.file_hash }}</span>
+                        </c-data-row>
+                        {% endif %}
+                        <c-data-row label="Status">
+                            {% if submission_file.signed_off %}
+                            <c-badge type="success" text="Signed Off" size="xs" />
+                            <span class="ml-2 text-gray-600">
+                                by {{ submission_file.signed_off_by.get_full_name|default:submission_file.signed_off_by.username }} 
+                                on {{ submission_file.signed_off_at|date:"M d, Y" }}
+                            </span>
+                            {% else %}
+                            <c-badge type="warning" text="Pending Sign-off" size="xs" />
+                            {% endif %}
+                        </c-data-row>
+                        {% if submission_file.audit %}
+                        <c-data-row label="Precheck Status">
+                            {% if submission_file.audit.status == 'completed' %}
+                                <span data-processing-complete></span>
+                                <c-badge type="success" text="Completed" size="xs" />
+                                {% if audit_report_url %}
+                                <a href="{{ audit_report_url }}" target="_blank"
+                                   class="ml-2 text-blue-600 hover:text-blue-800 underline">
+                                    View Report
+                                </a>
+                                {% endif %}
+                            {% elif submission_file.audit.status == 'pending' or submission_file.audit.status == 'processing_duckdb' or submission_file.audit.status == 'processing_notebook' %}
+                                <c-badge type="warning" text="Processing..." size="xs" />
+                            {% elif submission_file.audit.status == 'failed' %}
+                                <c-badge type="danger" text="Failed" size="xs" />
+                            {% endif %}
+                        </c-data-row>
+                        {% endif %}
+                    </tbody>
+                </c-data-table>
+            </c-card>
+            {% endif %}
+            
+            <!-- File Upload Section -->
+            <c-card title="File Upload" class="mb-6">
+                
+                {% if can_upload %}
+                <div id="upload-area" class="{% if not is_patient_file and not patient_file_exists %}opacity-50 pointer-events-none{% endif %}">
+                    <form id="upload-form" method="post" enctype="multipart/form-data" onsubmit="return false;">
+                        {% csrf_token %}
+                        <c-upload-box id="file-upload" name="file" accept=".csv,.txt">
+                            {% if submission_file.uploaded_file %}Upload new version (v{{ submission_file.version|add:1 }}){% else %}Upload a file{% endif %}
+                        </c-upload-box>
+                    </form>
+                    <div id="upload-progress" class="hidden mt-4">
+                        <div class="bg-blue-50 border border-blue-200 rounded p-4">
+                            <p class="text-sm text-blue-800">Uploading file...</p>
+                            <div class="mt-2 w-full bg-blue-200 rounded-full h-2">
+                                <div class="bg-blue-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-sm text-gray-500">This submission has been signed off and cannot be modified.</p>
+                {% endif %}
+            </c-card>
+
+            <!-- Patient Records Section (for patient files only) -->
+            {% if is_patient_file and patient_stats %}
+            <c-card title="Patient Records" class="mb-6" data-processing-complete>
+                <div class="space-y-3">
+                    <p class="text-sm text-gray-600">Current patient file extracted from the upload.</p>
+                    <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+                        <div class="p-6">
+                            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div>
+                                    <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Total rows</p>
+                                    <p class="text-2xl font-semibold text-gray-900">{{ patient_stats.total_count|intcomma }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </c-card>
+            {% endif %}
+
+            <!-- Sign-off Section -->
+            {% if submission_file.uploaded_file and not submission_file.signed_off %}
+            <c-card title="File Sign-off">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-4">
+                        <label for="comments" class="block text-sm font-medium text-gray-700 mb-2">
+                            Comments (Optional)
+                        </label>
+                        <c-textarea id="comments" name="comments" rows="3" placeholder="Add any notes about this file..." />
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="acknowledge-check" class="mr-2" required>
+                        <label for="acknowledge-check" class="text-sm text-gray-700">
+                            I have reviewed this file and any validation warnings
+                        </label>
+                    </div>
+                    <c-button variant="success" type="submit" name="sign_off" value="1">
+                        Sign Off on File
+                    </c-button>
+                </form>
+            </c-card>
+            {% elif submission_file.signed_off %}
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p class="text-sm text-green-800">
+                    <c-icon icon="check-circle" family="solid" class="inline w-4 h-4 mr-1" />
+                    File signed off by {{ submission_file.signed_off_by.get_full_name|default:submission_file.signed_off_by.username }}
+                    on {{ submission_file.signed_off_at|date:"M d, Y" }}
+                </p>
+                {% if submission_file.comments %}
+                <p class="mt-2 text-sm text-gray-700"><strong>Comments:</strong> {{ submission_file.comments }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="lg:col-span-1">
+            <!-- File Status -->
+            <c-card title="File Status" class="mb-6">
+                <dl class="space-y-3">
+                    <div>
+                        <dt class="text-xs text-gray-500">Status</dt>
+                        <dd class="text-sm font-medium text-gray-900">{{ submission_file.get_status_display|default:"Not Started" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-gray-500">Version</dt>
+                        <dd class="text-sm font-medium text-gray-900">{{ submission_file.version }}</dd>
+                    </div>
+                    {% if submission_file.approved_at %}
+                    <div>
+                        <dt class="text-xs text-gray-500">Approved</dt>
+                        <dd class="text-sm font-medium text-green-600">
+                            {{ submission_file.approved_at|date:"M d, Y" }}
+                            by {{ submission_file.approved_by.get_full_name|default:submission_file.approved_by.username }}
+                        </dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </c-card>
+
+            <!-- Admin Actions -->
+            {% if can_approve and submission_file.uploaded_file %}
+            <c-card title="Data Manager Actions">
+                {% if not submission_file.approved_at %}
+                <c-button variant="success" type="button" class="w-full">
+                    Approve File
+                </c-button>
+                {% else %}
+                <c-button variant="danger" type="button" class="w-full">
+                    Revoke Approval
+                </c-button>
+                {% endif %}
+            </c-card>
+            {% endif %}
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadProgress = document.getElementById('upload-progress');
+    const uploadArea = document.getElementById('upload-area');
+    let pollInterval = null;
+    let fileToUpload = null;
+
+    // Listen for ANY file input changes within the upload area
+    if (uploadArea) {
+        uploadArea.addEventListener('change', function(e) {
+            if (e.target.type === 'file' && e.target.files && e.target.files.length > 0) {
+                fileToUpload = e.target.files[0];
+                // Don't upload immediately - let the Cotton component trigger the form submit
+                // But we'll intercept it
+            }
+        }, true); // Use capture to catch it early
+    }
+
+    // Intercept form submission
+    const uploadForm = document.getElementById('upload-form');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Find the file input
+            const fileInput = uploadForm.querySelector('input[type="file"]');
+            if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                uploadFile(fileInput.files[0]);
+            } else if (fileToUpload) {
+                uploadFile(fileToUpload);
+            } else {
+                console.error('No file found to upload');
+            }
+        }, true); //Use capture
+    }
+
+    // Drag and drop
+    if (uploadArea && !uploadArea.classList.contains('pointer-events-none')) {
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.add('border-blue-500');
+        });
+
+        uploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('border-blue-500');
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('border-blue-500');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                uploadFile(files[0]);
+            }
+        });
+    }
+
+    function uploadFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+        uploadProgress.classList.remove('hidden');
+        uploadProgress.querySelector('p').textContent = 'Uploading file...';
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Start polling for processing completion
+                uploadProgress.querySelector('p').textContent = 'Processing file... This may take a minute.';
+                startPolling();
+            } else {
+                alert(data.error || 'Upload failed');
+                uploadProgress.classList.add('hidden');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Upload failed');
+            uploadProgress.classList.add('hidden');
+        });
+    }
+
+    function startPolling() {
+        pollInterval = setInterval(checkProcessingStatus, 3000); // Poll every 3 seconds
+    }
+
+    function stopPolling() {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+    }
+
+    async function checkProcessingStatus() {
+        try {
+            // Just reload the page - the server will show updated status
+            // This is simpler than creating a JSON endpoint
+            const response = await fetch(window.location.href, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            });
+
+            if (response.ok) {
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                // Check if processing is complete by looking for patient stats or completed audit
+                const isComplete = doc.querySelector('[data-processing-complete]') !== null;
+
+                if (isComplete) {
+                    stopPolling();
+                    window.location.reload();
+                }
+            }
+        } catch (error) {
+            console.error('Error checking status:', error);
+            // Continue polling even on error
+        }
+    }
+});
+</script>
+</c-app-page>

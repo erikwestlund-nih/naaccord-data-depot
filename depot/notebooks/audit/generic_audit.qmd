@@ -1,0 +1,44 @@
+---
+title: "Data Audit Report"
+format:
+  html:
+    toc: true
+    toc-float: true
+    toc-depth: 5
+    theme: cosmo
+    code-fold: true
+    fontsize: 1em
+    linestretch: 1.1
+    css: styles.css
+    self-contained: true
+params:
+  definition_file: ""  # Will be passed from audit record
+  data_file_path: ""  # Will be passed from audit record
+  data_file_type: ""  # Will be passed from audit record
+execute:
+  echo: false
+  warning: false
+---
+
+```{r setup}
+#| include: false
+
+source("setup.R")
+```
+
+```{r data-setup}
+#| echo: false
+
+
+# Initialize shared data object
+d <- init_audit_data(
+  definition_file = params$definition_file,
+  data_file_path = params$data_file_path
+  # definition_file = "laboratory_definition.json",
+  # data_file_path = "/var/folders/x1/8tkm5gs94m78hc6t8zgyqb380000gn/T/naaccord_audits/audit_50.duckdb"
+)
+```
+
+{{< include partials/definition-summary.qmd >}}
+{{< include partials/column-overview.qmd >}}
+{{< include partials/variable-sections.qmd >}}

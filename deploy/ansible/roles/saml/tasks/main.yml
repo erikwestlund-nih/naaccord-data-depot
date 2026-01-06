@@ -1,0 +1,117 @@
+---
+# SAML Configuration Role
+# Deploys SAML IdP metadata and configures Django SAML settings
+
+- name: Create SAML configuration directory
+  ansible.builtin.file:
+    path: /opt/naaccord/depot/deploy/saml
+    state: directory
+    owner: naaccord
+    group: naaccord
+    mode: '0755'
+
+# Fix permissions on mock-idp certificates (staging only)
+- name: Set correct permissions on mock-idp certificates
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: '0644'
+    owner: naaccord
+    group: naaccord
+  loop:
+    - /opt/naaccord/depot/deploy/keys/containers/mock-idp/cert/idp.crt
+    - /opt/naaccord/depot/deploy/keys/containers/mock-idp/cert/idp.key
+    - /opt/naaccord/depot/deploy/keys/containers/mock-idp/cert/sp-staging.crt
+    - /opt/naaccord/depot/deploy/keys/containers/mock-idp/cert/sp-staging.key
+  when: naaccord_environment == 'staging'
+
+- name: Restart mock-idp container to pick up certificate permissions
+  ansible.builtin.command:
+    cmd: docker restart naaccord-mock-idp
+  when: naaccord_environment == 'staging'
+  register: mock_idp_restart
+  changed_when: true
+
+- name: Wait for mock-idp to be healthy
+  ansible.builtin.command:
+    cmd: docker inspect --format='{% raw %}{{.State.Health.Status}}{% endraw %}' naaccord-mock-idp
+  register: mock_idp_health
+  until: mock_idp_health.stdout == "healthy"
+  retries: 10
+  delay: 3
+  changed_when: false
+  when: naaccord_environment == 'staging'
+
+- name: Fetch IDP metadata from SimpleSAMLphp (direct from mock-idp)
+  ansible.builtin.uri:
+    url: "http://localhost:8080/simplesaml/saml2/idp/metadata.php"
+    return_content: yes
+  register: simplesaml_metadata
+  when: naaccord_environment == 'staging'
+
+- name: Convert mock-idp URLs to public domain in metadata
+  ansible.builtin.set_fact:
+    fixed_metadata: "{{ simplesaml_metadata.content | regex_replace('https://naaccord.pequod.sh', 'https://' + domain) }}"
+  when: naaccord_environment == 'staging'
+
+- name: Deploy IdP metadata file from SimpleSAMLphp
+  ansible.builtin.copy:
+    content: "{{ fixed_metadata }}"
+    dest: "{{ saml_idp_metadata_file_host | default(saml_idp_metadata_file) }}"
+    owner: naaccord
+    group: naaccord
+    mode: '0644'
+  when: naaccord_environment == 'staging'
+
+- name: Deploy IdP metadata file from template (JHU Shibboleth)
+  ansible.builtin.template:
+    src: idp_metadata.xml.j2
+    dest: "{{ saml_idp_metadata_file_host | default(saml_idp_metadata_file) }}"
+    owner: naaccord
+    group: naaccord
+    mode: '0644'
+  when: naaccord_environment == 'production'
+
+- name: Verify IdP metadata file exists
+  ansible.builtin.stat:
+    path: "{{ saml_idp_metadata_file_host | default(saml_idp_metadata_file) }}"
+  register: idp_metadata_stat
+  when: saml_idp_template is defined
+
+- name: Fail if IdP metadata not found
+  ansible.builtin.fail:
+    msg: "IdP metadata file not found at {{ saml_idp_metadata_file_host | default(saml_idp_metadata_file) }}"
+  when:
+    - saml_idp_template is defined
+    - not idp_metadata_stat.stat.exists
+
+# Deploy SP certificates from vault (production only)
+- name: Create SAML certs directory
+  ansible.builtin.file:
+    path: /opt/naaccord/depot/deploy/saml_certs
+    state: directory
+    owner: naaccord
+    group: naaccord
+    mode: '0755'
+  when: naaccord_environment == 'production'
+
+- name: Deploy SAML SP certificate
+  ansible.builtin.copy:
+    content: "{{ vault_saml_sp_cert }}"
+    dest: /opt/naaccord/depot/deploy/saml_certs/sp-prod.crt
+    owner: naaccord
+    group: naaccord
+    mode: '0644'
+  when:
+    - naaccord_environment == 'production'
+    - vault_saml_sp_cert is defined
+
+- name: Deploy SAML SP private key
+  ansible.builtin.copy:
+    content: "{{ vault_saml_sp_key }}"
+    dest: /opt/naaccord/depot/deploy/saml_certs/sp-prod.key
+    owner: naaccord
+    group: naaccord
+    mode: '0600'
+  when:
+    - naaccord_environment == 'production'
+    - vault_saml_sp_key is defined

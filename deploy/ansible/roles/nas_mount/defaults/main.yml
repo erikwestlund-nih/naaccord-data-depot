@@ -1,0 +1,21 @@
+---
+# NAS mount defaults
+
+# NAS type: 'samba' = mount via Ansible, 'premounted' = assume IT mounted it
+nas_type: samba
+
+# NAS connection details (can be overridden in inventory)
+nas_host: "{{ nas_host | default('192.168.1.10') }}"
+nas_share: "{{ nas_share | default('submissions') }}"
+
+# Mount configuration
+nas_mount_point: /mnt/nas
+nas_mount_options: "rw,vers=3.0,uid=1000,gid=1000,file_mode=0644,dir_mode=0755"
+
+# Application ownership for NAS directories
+app_user: erik
+app_group: erik
+
+# Credentials (should be in vault, only needed for nas_type: samba)
+nas_username: ""
+nas_password: ""

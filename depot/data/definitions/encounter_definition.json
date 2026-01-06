@@ -1,0 +1,57 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "encounterDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date of clinical encounter."
+  },
+  {
+    "name": "encounterType",
+    "type": "string",
+    "description": "Type of clinical encounter. Clinical cohorts: use 'HIV Primary Care' for in-person visits and 'Telemedicine' codes for remote visits. Interval cohorts: use 'Interview visit' codes.",
+    "example": "HIV Primary Care, Telemedicine – Video, Telemedicine – Phone, Interview visit – in-person",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "encounterInsType1",
+    "type": "string",
+    "description": "Primary Insurance Type for Visit at time of encounter. Valid codes: 1=Medicaid (or Medi-Cal for CA), 2=Medicare, 3=Medicaid+Medicare, 4=Other US public, 5=Veteran's Administration Medical Benefits, 6=Canadian publicly-funded provincial health care plan, 7=Private or commercial health insurance, 8=Self pay/none (including Ryan White/ADAP), 9=Worker's Comp, 99=Unknown. You may submit either the numeric or text value.",
+    "example": "Medicare, Medicaid, 2, 7, Private or commercial health insurance",
+    "value_optional": true,
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "encounterInsType2",
+    "type": "string",
+    "description": "Second Insurance Type for Visit at time of encounter. Valid codes: 1=Medicaid, 2=Medicare, 3=Medicaid+Medicare, 4=Other US public, 5=Veteran's Administration Medical Benefits, 6=Canadian publicly-funded provincial health care plan, 7=Private or commercial health insurance, 8=Self pay/none, 9=Worker's Comp, 99=Unknown. You may submit either the numeric or text value.",
+    "example": "Medicare, 2, 7",
+    "value_optional": true
+  },
+  {
+    "name": "encounterInsType3",
+    "type": "string",
+    "description": "Third Insurance Type for Visit at time of encounter. Valid codes: 1=Medicaid, 2=Medicare, 3=Medicaid+Medicare, 4=Other US public, 5=Veteran's Administration Medical Benefits, 6=Canadian publicly-funded provincial health care plan, 7=Private or commercial health insurance, 8=Self pay/none, 9=Worker's Comp, 99=Unknown. You may submit either the numeric or text value.",
+    "example": "Medicare, 2, 7",
+    "value_optional": true
+  },
+  {
+    "name": "encounterInsType4",
+    "type": "string",
+    "description": "Fourth Insurance Type for Visit at time of encounter. Valid codes: 1=Medicaid, 2=Medicare, 3=Medicaid+Medicare, 4=Other US public, 5=Veteran's Administration Medical Benefits, 6=Canadian publicly-funded provincial health care plan, 7=Private or commercial health insurance, 8=Self pay/none, 9=Worker's Comp, 99=Unknown. You may submit either the numeric or text value.",
+    "example": "Medicare, 2, 7",
+    "value_optional": true
+  },
+  {
+    "name": "encounterInsType5",
+    "type": "string",
+    "description": "Fifth Insurance Type for Visit at time of encounter. Valid codes: 1=Medicaid, 2=Medicare, 3=Medicaid+Medicare, 4=Other US public, 5=Veteran's Administration Medical Benefits, 6=Canadian publicly-funded provincial health care plan, 7=Private or commercial health insurance, 8=Self pay/none, 9=Worker's Comp, 99=Unknown. You may submit either the numeric or text value.",
+    "example": "Medicare, 2, 7",
+    "value_optional": true
+  }
+]

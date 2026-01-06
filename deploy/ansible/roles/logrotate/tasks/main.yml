@@ -1,0 +1,65 @@
+---
+# Logrotate configuration for NA-ACCORD
+
+- name: Ensure logrotate is installed
+  ansible.builtin.dnf:
+    name: logrotate
+    state: present
+  tags: ['logrotate', 'logging']
+
+- name: Ensure NA-ACCORD log directory exists
+  ansible.builtin.file:
+    path: "{{ naaccord_log_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  tags: ['logrotate', 'logging']
+
+- name: Configure logrotate for NA-ACCORD application logs
+  ansible.builtin.template:
+    src: naaccord-logs.j2
+    dest: /etc/logrotate.d/naaccord
+    owner: root
+    group: root
+    mode: '0644'
+  tags: ['logrotate', 'logging', 'naaccord']
+
+- name: Configure logrotate for Nginx logs
+  ansible.builtin.template:
+    src: nginx-logs.j2
+    dest: /etc/logrotate.d/nginx
+    owner: root
+    group: root
+    mode: '0644'
+  when: "'web' in group_names"
+  tags: ['logrotate', 'logging', 'nginx']
+
+- name: Configure logrotate for Docker container logs
+  ansible.builtin.template:
+    src: docker-logs.j2
+    dest: /etc/logrotate.d/docker-containers
+    owner: root
+    group: root
+    mode: '0644'
+  tags: ['logrotate', 'logging', 'docker']
+
+- name: Test logrotate configuration
+  ansible.builtin.command:
+    cmd: logrotate -d /etc/logrotate.d/naaccord
+  register: logrotate_test
+  changed_when: false
+  failed_when: false
+  tags: ['logrotate', 'verify']
+
+- name: Display logrotate test results
+  ansible.builtin.debug:
+    msg: "Logrotate configuration test: {{ 'PASSED' if logrotate_test.rc == 0 else 'FAILED' }}"
+  tags: ['logrotate', 'verify']
+
+- name: Ensure logrotate runs daily
+  ansible.builtin.systemd:
+    name: logrotate.timer
+    enabled: yes
+    state: started
+  tags: ['logrotate', 'logging']

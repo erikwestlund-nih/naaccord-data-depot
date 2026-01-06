@@ -1,0 +1,19 @@
+<c-vars key_heading="Statistic" value_heading="Value" class="" body_class="" />
+
+<div class="{{ class }} rounded-lg border border-gray-200 overflow-hidden">
+    <table class="min-w-full text-[13px]">
+        <thead class="bg-gray-50">
+            <tr>
+                <th scope="col" class="px-2.5 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                    {{ key_heading }}
+                </th>
+                <th scope="col" class="px-2.5 py-2 text-right text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                    {{ value_heading }}
+                </th>
+            </tr>
+        </thead>
+        <tbody class="{{ body_class }}">
+            {{ slot }}
+        </tbody>
+    </table>
+</div>

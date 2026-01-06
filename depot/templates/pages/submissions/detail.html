@@ -1,0 +1,799 @@
+{% load depot_filters %}
+<c-app-page title="{{ submission.cohort.name }} - Protocol Year {{ submission.protocol_year.year }}">
+    <!-- Back Link -->
+    <div class="mb-4">
+        <a href="{% url 'submissions' %}" class="inline-flex items-center text-sm text-gray-500 hover:text-gray-700">
+            <c-icon icon="arrow-left" family="solid" class="h-4 w-4 mr-1.5" />
+            Back to File Submissions
+        </a>
+    </div>
+
+    <!-- Table Selector -->
+    <div class="mb-8 max-w-md mx-auto">
+        <div class="grid grid-cols-1">
+            <select
+                onchange="if(this.value) window.location.href='{% url 'submission_table_manage' submission.id 'PLACEHOLDER' %}'.replace('PLACEHOLDER', this.value)"
+                class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-2.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-700 sm:text-sm/6">
+                <option value="">Select a table to view...</option>
+                {% for table in tables_display %}
+                <option value="{{ table.file_type.name }}">
+                    {{ table.display_name }} [{{ table.status }}]
+                </option>
+                {% endfor %}
+            </select>
+            <c-icon icon="chevron-down" family="solid" class="pointer-events-none col-start-1 row-start-1 mr-3 h-4 w-4 self-center justify-self-end text-gray-500" />
+        </div>
+    </div>
+
+    <!-- Custom Header -->
+    <div class="mb-8">
+        <div class="flex justify-between items-start">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">{{ submission.cohort.name }}</h1>
+                <p class="mt-2 text-lg text-gray-600">Protocol Year {{ submission.protocol_year.year }} Submission</p>
+                <p class="mt-2 text-sm text-gray-500">
+                    Started by {{ submission.started_by.get_full_name|default:submission.started_by.username }}
+                    on {{ submission.created_at|date:"M d, Y" }}
+                </p>
+            </div>
+            <div class="flex items-center space-x-2">
+                <c-status-badge status="{{ submission.status }}" text="{{ submission.get_status_display }}" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Signed Off Banner -->
+    {% if submission.status == 'signed_off' %}
+    <div class="bg-green-50 border border-green-200 rounded-lg p-6 mb-8">
+        <p class="text-lg font-semibold text-green-800">
+            <c-icon icon="check-circle" family="solid" class="inline w-6 h-6 mr-2" />
+            Submission Successfully Signed Off
+        </p>
+        <p class="text-sm text-gray-700 mt-2">
+            Signed off by {{ submission.final_acknowledged_by.get_full_name|default:submission.final_acknowledged_by.username }}
+            on {{ submission.final_acknowledged_at|date:"M d, Y" }}
+        </p>
+        {% if submission.final_comments %}
+        <div class="mt-3 text-sm text-gray-700">
+            <strong>Comments:</strong>
+            <div class="mt-1">{{ submission.final_comments|render_markdown }}</div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Submission Health -->
+    <c-card title="Progress & Validation" class="mb-8">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="text-sm text-gray-500">Status</span>
+                {% if submission.status == 'signed_off' %}
+                    <span class="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Signed Off</span>
+                {% elif validation_summary.status == 'running' %}
+                    <span class="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">Validating</span>
+                {% elif tables_reviewed > 0 %}
+                    <span class="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">In Progress</span>
+                {% else %}
+                    <span class="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">Not Started</span>
+                {% endif %}
+            </div>
+            <div class="text-sm text-gray-500">
+                Updated
+                {% if validation_summary.last_completed_at %}
+                    {{ validation_summary.last_completed_at|timesince }} ago
+                {% elif validation_summary.last_started_at %}
+                    {{ validation_summary.last_started_at|timesince }} ago
+                {% else %}
+                    —
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div class="text-2xl font-semibold text-gray-900">{{ tables_started }}/{{ total_tables }}</div>
+                <p class="text-xs text-gray-600 mt-1 uppercase tracking-wide">Tables started</p>
+            </div>
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div class="text-2xl font-semibold text-gray-900">{{ tables_reviewed }}/{{ total_tables }}</div>
+                <p class="text-xs text-gray-600 mt-1 uppercase tracking-wide">Tables completed</p>
+            </div>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div class="text-2xl font-semibold text-amber-700">{{ validation_summary.files_with_warnings }}</div>
+                <p class="text-xs text-amber-600 mt-1 uppercase tracking-wide">Tables with warnings</p>
+            </div>
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div class="text-2xl font-semibold text-red-700">{{ validation_summary.files_with_errors }}</div>
+                <p class="text-xs text-red-600 mt-1 uppercase tracking-wide">Tables with errors</p>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <div class="flex items-center justify-between text-sm text-gray-600 mb-1">
+                <span>Overall progress</span>
+                <span class="font-medium text-gray-900">{{ completion_percentage|floatformat:0 }}%</span>
+            </div>
+            <div class="bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: {{ completion_percentage }}%"></div>
+            </div>
+        </div>
+
+        <div class="mt-6 flex items-center justify-between">
+            {% if patient_stats %}
+            <div class="text-sm text-gray-600">
+                Patient records: <span class="font-medium text-gray-900">{{ patient_stats.count|intcomma }}</span>
+            </div>
+            {% else %}
+            <span></span>
+            {% endif %}
+            <a href="{% url 'submission_table_manage' submission.id 'patient' %}" class="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md bg-white text-gray-700 hover:text-blue-700">
+                View validation details
+            </a>
+        </div>
+    </c-card>
+
+    <!-- Review Status Summary (only show if there are tables with issues) -->
+    {% if tables_with_issues > 0 and can_edit %}
+    <c-card class="mb-8 border-amber-200 bg-amber-50">
+        <div class="flex items-start">
+            <c-icon icon="exclamation-triangle" family="solid" class="h-5 w-5 text-amber-600 mt-0.5" />
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-amber-800">Review Status</h3>
+                <div class="mt-2 text-sm text-amber-700">
+                    <p>{{ tables_with_issues }} table{{ tables_with_issues|pluralize }} with validation issues</p>
+                    <p>{{ tables_reviewed }} of {{ tables_started }} table{{ tables_started|pluralize }} marked complete</p>
+                </div>
+                <p class="mt-2 text-xs text-amber-600">
+                    Click on each table to review validation results and add comments.
+                </p>
+            </div>
+        </div>
+    </c-card>
+    {% endif %}
+
+    <!-- Data Tables Section - Full Width -->
+    <div class="mb-8">
+        <c-card title="Data Tables" subtitle="Upload all data your site collects." variant="no-padding">
+                <div class="divide-y divide-gray-300">
+                    {% for table_info in tables_display %}
+                    <div id="table-{{ table_info.file_type.name }}"
+                         class="{% if not table_info.enabled %}bg-gray-50 opacity-60{% elif table_info.enabled and not table_info.data_table %}bg-gray-50{% endif %}">
+                        <div class="flex items-center">
+                            <!-- Main Content Cell -->
+                            <div class="flex-1 px-6 py-6">
+                                <h3 class="text-sm font-medium {% if table_info.enabled %}text-gray-900{% else %}text-gray-500{% endif %}">
+                                    {{ table_info.display_name }}
+                                {% if table_info.data_table %}
+                                {% elif table_info.is_patient %}
+                                <span class="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Upload First</span>
+                                {% elif not table_info.enabled %}
+                                <c-icon icon="lock" family="solid" class="inline h-3 w-3 ml-2 text-gray-400" />
+                                {% endif %}
+                            </h3>
+                            {% if table_info.file_type.description %}
+                            <p class="mt-1 text-sm text-gray-500">{{ table_info.file_type.description }}</p>
+                            {% endif %}
+
+                            {% if table_info.data_table %}
+                            <div class="mt-2 text-xs text-gray-600">
+                                {% if table_info.file_count > 0 %}
+                                <span>{{ table_info.file_count }} file{{ table_info.file_count|pluralize }}</span>
+                                <span class="mx-1">•</span>
+                                {% endif %}
+                                {% if table_info.review and table_info.review.is_reviewed %}
+                                <span>Status: Complete</span>
+                                {% elif table_info.has_files %}
+                                <span>Status: Submitted</span>
+                                {% else %}
+                                <span>Status: Not Submitted</span>
+                                {% endif %}
+                                {% if table_info.data_table.signed_off %}
+                                <span class="mx-1">•</span>
+                                <span class="text-green-600">Signed Off</span>
+                                {% endif %}
+                                {% if table_info.review %}
+                                    {% if table_info.review.validation_report_viewed %}
+                                    <span class="mx-1">•</span>
+                                    <span class="text-blue-600">Report Viewed</span>
+                                    {% endif %}
+                                    {% if table_info.review.has_validation_errors %}
+                                    <span class="mx-1">•</span>
+                                    <span class="text-red-600">Has Errors</span>
+                                    {% elif table_info.review.has_validation_warnings %}
+                                    <span class="mx-1">•</span>
+                                    <span class="text-amber-600">Has Warnings</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <div class="mt-2 text-xs text-gray-600">
+                                <span>0 files</span>
+                                <span class="mx-1">•</span>
+                                <span>Status: Not started</span>
+                            </div>
+                            {% endif %}
+                            </div>
+
+                            <!-- Action Cell (right) -->
+                            <div class="w-48 px-4 py-6 flex items-center justify-center space-x-3 border-l border-gray-100">
+                                <!-- Status Icon (only show when enabled and has data) -->
+                                {% if table_info.enabled %}
+                                    {% if table_info.review and table_info.review.is_reviewed %}
+                                    <div class="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center">
+                                        <c-icon icon="check" family="solid" class="w-3 h-3 text-white" />
+                                    </div>
+                                    {% elif table_info.has_files %}
+                                    <c-icon icon="clock" family="solid" class="w-5 h-5 text-yellow-500" />
+                                    {% elif table_info.data_table %}
+                                    <div class="w-5 h-5 rounded-full border-2 border-gray-300"></div>
+                                    {% else %}
+                                    <div class="w-5"></div>  <!-- Spacer -->
+                                    {% endif %}
+                                {% else %}
+                                <div class="w-5"></div>  <!-- Spacer for disabled tables -->
+                                {% endif %}
+
+                                <!-- Action Button (natural width) -->
+                                {% if table_info.enabled %}
+                                    {% if can_edit %}
+                                    <c-button variant="primary" size="sm" href="{% url 'submission_table_manage' submission.id table_info.file_type.name %}">
+                                        {% if table_info.has_files or table_info.data_table %}Edit{% else %}Start{% endif %}
+                                    </c-button>
+                                    {% elif table_info.has_files or table_info.data_table %}
+                                    <c-button variant="secondary" size="sm" href="{% url 'submission_table_manage' submission.id table_info.file_type.name %}">
+                                        View
+                                    </c-button>
+                                    {% else %}
+                                    <div class="w-5"></div>  <!-- Spacer to maintain alignment -->
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-xs text-gray-500">Requires patient file</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+        </c-card>
+    </div>
+
+    <!-- Divider -->
+    <hr class="my-8 border-gray-200" />
+
+<!-- Attachments Section - Card-based UI -->
+{% if submission_attachments or can_edit %}
+<div class="mt-8">
+    <h2 class="text-xl font-bold text-gray-900 mb-4">
+        File Attachments
+        {% if submission_attachments %}
+            <span class="text-sm font-normal text-gray-500 ml-2">({{ submission_attachments|length }} total)</span>
+        {% else %}
+            <span class="text-sm font-normal text-gray-500 ml-2">(0 total)</span>
+        {% endif %}
+    </h2>
+
+    <p class="mb-6 text-sm text-gray-600">
+        Upload any additional files, such as codebooks, that may help with the storage and analysis of this data.
+    </p>
+
+    <!-- Two-column layout: Attachments (left) and Upload (right) -->
+    <!-- On mobile: stack vertically, on tablet+: side by side -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+
+        <!-- Left Column: Existing Attachments -->
+        <div class="lg:col-span-1">
+            {% if submission_attachments %}
+            <h3 class="text-lg font-medium text-gray-900 mb-3">Current Attachments</h3>
+            <div class="space-y-4">
+        {% for attachment in submission_attachments %}
+        <div class="bg-white rounded-lg shadow-sm border border-gray-300 p-6" data-attachment-id="{{ attachment.id }}">
+            <!-- Attachment Name Field -->
+            {% if can_edit %}
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-900 mb-2">
+                    Attachment Name <span class="text-xs text-gray-500 font-normal">(helps identify this attachment)</span>
+                </label>
+                <input type="text"
+                       value="{{ attachment.name|default:attachment.get_display_name }}"
+                       placeholder="Enter a descriptive name for this attachment"
+                       x-data="attachmentName{{ attachment.id }}"
+                       x-model="attachmentName"
+                       @input="scheduleAutoSave()"
+                       class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-blue-600 sm:text-sm/6" />
+            </div>
+            {% elif attachment.name %}
+            <div class="mb-4">
+                <div class="text-sm font-medium text-gray-900 mb-1">Attachment Name</div>
+                <div class="text-sm text-gray-600">{{ attachment.name }}</div>
+            </div>
+            {% endif %}
+
+            <!-- Attachment Details -->
+            <dl class="grid grid-cols-1 gap-2 text-sm mb-4">
+                <div class="flex justify-between">
+                    <dt class="font-semibold text-gray-900">File name</dt>
+                    <dd class="text-gray-600 text-right font-mono">
+                        {{ attachment.get_display_name }}
+                    </dd>
+                </div>
+                {% if attachment.uploaded_file %}
+                <div class="flex justify-between">
+                    <dt class="font-semibold text-gray-900">Size</dt>
+                    <dd class="text-gray-600 text-right">{{ attachment.uploaded_file.file_size|filesizeformat }}</dd>
+                </div>
+                {% endif %}
+                <div class="flex justify-between">
+                    <dt class="font-semibold text-gray-900">Uploaded</dt>
+                    <dd class="text-gray-600 text-right">{{ attachment.uploaded_at|date:"M d, Y" }} by {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}</dd>
+                </div>
+            </dl>
+
+            <!-- Comments Field -->
+            {% if can_edit %}
+            <div class="mb-4" x-data="attachmentComments{{ attachment.id }}()"
+                 @input="if($event.detail && $event.detail.value !== undefined) { comments = $event.detail.value; scheduleAutoSave(); }">
+                <label class="block text-sm font-medium text-gray-900 mb-2">Comments</label>
+                <c-richtexteditor
+                    name="attachment_comments_{{ attachment.id }}"
+                    value="{{ attachment.comments|default:""|safe }}"
+                    placeholder="Add comments about this attachment..."
+                    min_height="120"
+                />
+            </div>
+            {% elif attachment.comments %}
+            <div class="mb-4">
+                <div class="text-sm font-medium text-gray-900 mb-2">Comments</div>
+                <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+                    {{ attachment.comments|render_markdown }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Actions -->
+            {% if can_edit %}
+            <div class="flex justify-end pt-4 border-t border-gray-100">
+                <button type="button"
+                        onclick="removeAttachment({{ attachment.id }})"
+                        class="inline-flex items-center px-3 py-2 text-sm font-medium bg-white text-red-700 border border-red-300 rounded-md hover:bg-red-50">
+                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                    Remove
+                </button>
+            </div>
+            {% endif %}
+        </div>
+            {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">
+                <p class="text-sm">No attachments uploaded yet.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right Column: Upload Form -->
+        <div class="lg:col-span-1{% if submission_attachments %} mt-10{% endif %}">
+    {% if can_edit %}
+    <c-card title="Upload Attachment" class="mb-6">
+        <div x-data="attachmentUploader()">
+            <form id="attachmentUploadForm" method="post" enctype="multipart/form-data"
+                  action="{% url 'upload_submission_attachment_secure' submission.id %}"
+                  @submit.prevent="submitForm">
+                {% csrf_token %}
+
+                <!-- Name field -->
+                <div class="mb-4">
+                    <label for="attachment_name" class="block text-sm font-medium text-gray-900 mb-2">
+                        Attachment Name <span class="text-xs text-gray-500 font-normal">(helps identify this attachment)</span>
+                    </label>
+                    <input type="text"
+                           id="attachment_name"
+                           name="attachment_name"
+                           x-model="attachmentName"
+                           class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-blue-600 sm:text-sm/6"
+                           placeholder="Enter a descriptive name for this attachment">
+                </div>
+
+                <!-- Comments field with rich text editor -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-900 mb-2">Comments</label>
+                    <c-richtexteditor
+                        name="attachment_comments"
+                        value=""
+                        placeholder="Add comments about this attachment..."
+                        min_height="80"
+                    />
+                </div>
+
+                <!-- Dropzone for attachment upload -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-900 mb-2">Select File</label>
+                    <div class="flex justify-center w-full px-6 py-10 border-2 border-gray-200 border-dashed rounded-lg cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                         @dragover.prevent
+                         @drop.prevent="handleDrop($event)"
+                         @click="$refs.attachmentInput.click()">
+                        <div class="text-center">
+                            <input type="file"
+                                   id="attachment_file"
+                                   name="attachment"
+                                   class="hidden"
+                                   x-ref="attachmentInput"
+                                   @change="handleFileSelect($event)"
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.png,.jpg,.jpeg">
+
+                            <div x-show="!selectedFile" class="mt-3">
+                                <p class="text-sm text-gray-600">
+                                    <span class="font-medium text-blue-600 hover:text-blue-500">Click to select a file</span>
+                                </p>
+                            </div>
+
+                            <div x-show="selectedFile" class="mt-3">
+                                <p class="text-sm font-medium text-gray-900" x-text="selectedFile?.name"></p>
+                                <p class="text-xs text-gray-500 mt-1" x-text="formatFileSize(selectedFile?.size)"></p>
+                                <button type="button"
+                                        @click.stop="clearFile()"
+                                        class="mt-2 text-sm text-blue-600 hover:text-blue-800">
+                                    Remove file
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit button -->
+                <div class="flex justify-end pt-4 border-t border-gray-100">
+                    <button type="submit"
+                            :disabled="!selectedFile || isUploading"
+                            :class="{'opacity-50 cursor-not-allowed': !selectedFile || isUploading}"
+                            class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <span x-show="!isUploading">Upload Attachment</span>
+                        <span x-show="isUploading">Uploading...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </c-card>
+
+    <script>
+        function attachmentUploader() {
+            return {
+                selectedFile: null,
+                attachmentName: '',
+                comments: '',
+                isUploading: false,
+
+                init() {
+                    // Listen for rich text editor changes
+                    this.$el.addEventListener('input', (event) => {
+                        if (event.detail && event.detail.value !== undefined) {
+                            this.comments = event.detail.value;
+                        }
+                    });
+                },
+
+                handleDrop(event) {
+                    const files = event.dataTransfer.files;
+                    if (files.length > 0) {
+                        this.selectedFile = files[0];
+                    }
+                },
+
+                handleFileSelect(event) {
+                    const files = event.target.files;
+                    if (files.length > 0) {
+                        this.selectedFile = files[0];
+                    }
+                },
+
+                clearFile() {
+                    this.selectedFile = null;
+                    this.$refs.attachmentInput.value = '';
+                },
+
+                formatFileSize(bytes) {
+                    if (!bytes) return '';
+                    const kb = bytes / 1024;
+                    if (kb < 1024) {
+                        return kb.toFixed(1) + ' KB';
+                    }
+                    return (kb / 1024).toFixed(1) + ' MB';
+                },
+
+                async submitForm() {
+                    if (!this.selectedFile) return;
+
+                    this.isUploading = true;
+                    const formData = new FormData();
+                    formData.append('attachment', this.selectedFile);
+                    formData.append('attachment_name', this.attachmentName);
+                    formData.append('attachment_comments', this.comments);
+                    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+                    try {
+                        const response = await fetch(document.getElementById('attachmentUploadForm').action, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (response.ok) {
+                            window.location.reload();
+                        } else {
+                            const data = await response.json();
+                            alert(data.error || 'Upload failed. Please try again.');
+                            this.isUploading = false;
+                        }
+                    } catch (error) {
+                        console.error('Upload error:', error);
+                        alert('Upload failed. Please try again.');
+                        this.isUploading = false;
+                    }
+                }
+            }
+        }
+
+        // Auto-save functions for existing attachments
+        {% for attachment in submission_attachments %}
+        function attachmentName{{ attachment.id }}() {
+            return {
+                attachmentName: '{{ attachment.name|default:attachment.get_display_name|escapejs }}',
+                saveTimeout: null,
+
+                init() {
+                },
+
+                scheduleAutoSave() {
+                    clearTimeout(this.saveTimeout);
+                    this.saveTimeout = setTimeout(() => {
+                        this.saveAttachmentName();
+                    }, 1000);
+                },
+
+                async saveAttachmentName() {
+                    try {
+                        const response = await fetch('{% url "save_attachment_name" attachment.id %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: JSON.stringify({
+                                name: this.attachmentName
+                            })
+                        });
+
+                        if (!response.ok) {
+                            console.error('Failed to save attachment name');
+                        }
+                    } catch (error) {
+                        console.error('Error saving attachment name:', error);
+                    }
+                }
+            }
+        }
+
+        function attachmentComments{{ attachment.id }}() {
+            return {
+                comments: `{{ attachment.comments|default:""|safe }}`,
+                saveTimeout: null,
+
+                init() {
+                },
+
+                scheduleAutoSave() {
+                    clearTimeout(this.saveTimeout);
+                    this.saveTimeout = setTimeout(() => {
+                        this.saveAttachmentComments();
+                    }, 1000);
+                },
+
+                async saveAttachmentComments() {
+                    try {
+                        const response = await fetch('{% url "save_attachment_comments" attachment.id %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: JSON.stringify({
+                                comments: this.comments
+                            })
+                        });
+
+                        if (!response.ok) {
+                            console.error('Attachment comments {{ attachment.id }} - Failed to save');
+                        }
+                    } catch (error) {
+                        console.error('Attachment comments {{ attachment.id }} - Error saving:', error);
+                    }
+                }
+            }
+        }
+        {% endfor %}
+
+        // Remove attachment function
+        async function removeAttachment(attachmentId) {
+            if (!confirm('Are you sure you want to remove this attachment?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/attachments/${attachmentId}/delete`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Failed to remove attachment. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error removing attachment:', error);
+                alert('Failed to remove attachment. Please try again.');
+            }
+        }
+    </script>
+    {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+    <!-- Divider -->
+    <hr class="my-8 border-gray-200" />
+
+    <!-- Final Sign-off Section -->
+    {% if can_edit and submission.status != 'signed_off' %}
+    <c-card title="Final Submission Sign-off" class="mt-8">
+        <form method="post" x-data="finalCommentsEditor()" @submit="handleSignOffSubmit($event)">
+            {% csrf_token %}
+            <div class="mb-4">
+                <div class="flex justify-between items-center mb-2">
+                    <label for="final_comments" class="block text-sm font-medium text-gray-700">
+                        Sign-off Comments (optional)
+                    </label>
+                    <div class="text-xs text-gray-500">
+                        <span x-show="saving" class="text-blue-600">
+                            <c-icon icon="refresh" family="solid" class="inline h-3 w-3 animate-spin" />
+                            Saving...
+                        </span>
+                        <span x-show="!saving && lastSaved" x-text="'Saved at ' + lastSaved" class="text-green-600"></span>
+                    </div>
+                </div>
+                <c-richtexteditor
+                    name="final_comments"
+                    value="{{ submission.final_comments|default:"" }}"
+                    placeholder="Any final notes about this submission..."
+                />
+            </div>
+            <div class="mb-6">
+                <label class="flex items-start">
+                    <input type="checkbox" required 
+                           class="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <span class="ml-2 text-sm text-gray-700">
+                        I acknowledge that all data tables have been reviewed and any validation warnings have been addressed or documented.
+                    </span>
+                </label>
+            </div>
+            <button type="submit" name="final_sign_off" value="1"
+                    class="w-full sm:w-auto px-6 py-3 bg-green-600 text-white text-base font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                Sign Off Entire Submission
+            </button>
+        </form>
+    </c-card>
+
+    <script>
+        function finalCommentsEditor() {
+            return {
+                finalComments: '{{ submission.final_comments|default:""|escapejs }}',
+                saving: false,
+                lastSaved: null,
+                saveTimeout: null,
+
+                init() {
+                    // Listen for input events that bubble up from the nested richtexteditor
+                    this.$el.addEventListener('input', (event) => {
+                        // Check if this is from the richtexteditor component
+                        if (event.detail && event.detail.value !== undefined) {
+                            this.finalComments = event.detail.value;
+                            this.scheduleAutoSave();
+                        }
+                    });
+                },
+
+                handleSignOffSubmit(event) {
+                    // Check if this is the sign-off button (not a different submit)
+                    const submitter = event.submitter;
+                    if (submitter && submitter.name === 'final_sign_off') {
+                        event.preventDefault();
+
+                        if (confirm('You will no longer be able to edit this submission. Are you sure?')) {
+                            // Create a hidden input with the final_sign_off value
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'final_sign_off';
+                            input.value = '1';
+                            event.target.appendChild(input);
+
+                            // Submit the form
+                            event.target.submit();
+                        }
+                    }
+                },
+
+                scheduleAutoSave() {
+                    clearTimeout(this.saveTimeout);
+                    this.saveTimeout = setTimeout(() => {
+                        this.saveFinalComments();
+                    }, 1000);
+                },
+
+                async saveFinalComments() {
+                    this.saving = true;
+
+                    try {
+                        const response = await fetch('{% url "save_submission_final_comments" submission.id %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: JSON.stringify({
+                                comments: this.finalComments
+                            })
+                        });
+
+                        if (response.ok) {
+                            this.lastSaved = new Date().toLocaleTimeString();
+                            setTimeout(() => {
+                                this.saving = false;
+                            }, 500);
+                        } else {
+                            console.error('Failed to save final comments');
+                            this.saving = false;
+                        }
+                    } catch (error) {
+                        console.error('Error saving final comments:', error);
+                        this.saving = false;
+                    }
+                }
+            }
+        }
+    </script>
+
+    {% endif %}
+
+    <hr class="mt-8 border-gray-200">
+    
+    <!-- Notes Section -->
+    {% if submission.notes %}
+    <c-card title="Submission Notes" class="mt-8">
+        <div class="prose max-w-none">
+            {{ submission.notes|linebreaks }}
+        </div>
+    </c-card>
+    {% endif %}
+    
+    <!-- Latest Activity Section -->
+    <div class="mt-8 overflow-hidden bg-white shadow-sm sm:rounded-lg">
+        <div class="px-4 py-6 sm:px-6">
+            <h3 class="text-base font-semibold text-gray-900">Latest Activity</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">Recent activity for this submission.</p>
+        </div>
+        <div class="border-t border-gray-100">
+            <div class="px-4 py-6 sm:px-6">
+                {% if recent_activities %}
+                    <c-activity_feed :activities="recent_activities" show_cohort="false" />
+                {% else %}
+                    <p class="text-sm text-gray-500">No recent activity to display.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the reusable attachment upload modal -->
+    </c-app-page>

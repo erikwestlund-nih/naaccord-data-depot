@@ -1,0 +1,41 @@
+# Mock IDP Service for NA-ACCORD Staging
+# SimpleSAMLphp container that mimics JHU Shibboleth
+
+services:
+  mock-idp:
+    image: ghcr.io/jhbiostatcenter/naaccord/mock-idp:latest
+    container_name: naaccord-mock-idp
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # SimpleSAMLphp configuration
+      SIMPLESAMLPHP_SECRET: "${SIMPLESAMLPHP_SECRET:-defaultsecretchangeme}"
+      SIMPLESAMLPHP_ADMIN_PASSWORD: "${SIMPLESAMLPHP_ADMIN_PASSWORD:-admin}"
+    volumes:
+      # Mount configuration files
+      - ${NAACCORD_REPO_DIR:-/opt/naaccord/depot}/deploy/containers/mock-idp/config:/var/simplesamlphp/config:ro
+      - ${NAACCORD_REPO_DIR:-/opt/naaccord/depot}/deploy/containers/mock-idp/metadata:/var/simplesamlphp/metadata:ro
+      - ${NAACCORD_REPO_DIR:-/opt/naaccord/depot}/deploy/containers/mock-idp/cert:/var/simplesamlphp/cert:ro
+      # Data directories (persistent)
+      - mock-idp-data:/var/simplesamlphp/data
+      - mock-idp-log:/var/simplesamlphp/log
+    networks:
+      - naaccord-staging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/simplesaml/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  mock-idp-data:
+    name: naaccord-mock-idp-data
+  mock-idp-log:
+    name: naaccord-mock-idp-log
+
+networks:
+  naaccord-staging:
+    name: naaccord-staging
+    external: true

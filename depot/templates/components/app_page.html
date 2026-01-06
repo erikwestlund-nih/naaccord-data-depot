@@ -1,0 +1,9 @@
+{% extends "layouts/app.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block body %}
+    <c-page-container :heading="heading">
+        {{ slot }}
+    </c-page-container>
+{% endblock %}

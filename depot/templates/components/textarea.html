@@ -1,0 +1,12 @@
+<c-vars id="" name="" rows="3" placeholder="" required="false" value="" disabled="false" class="" x_model="" />
+
+<textarea 
+    {% if id %}id="{{ id }}"{% endif %}
+    {% if name %}name="{{ name }}"{% endif %}
+    rows="{{ rows }}" 
+    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm {{ class }}"
+    {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+    {% if required == "true" %}required{% endif %}
+    {% if disabled == "true" %}disabled{% endif %}
+    {% if x_model %}x-model="{{ x_model }}"{% endif %}
+    {{ attrs }}>{{ value }}{{ slot }}</textarea>

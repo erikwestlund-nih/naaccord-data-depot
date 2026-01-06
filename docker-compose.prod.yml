@@ -1,0 +1,639 @@
+services:
+  # =============================================================================
+  # Infrastructure Services (Production Configuration)
+  # =============================================================================
+  # NOTE: MariaDB runs on bare metal / managed service in production
+  # Configure DATABASE_HOST to point to your production database server
+
+  redis:
+    image: redis:7-alpine
+    container_name: naaccord-redis
+    profiles: ["services"]
+    entrypoint: ["/entrypoint-redis.sh"]
+    tmpfs:
+      - /data:rw,noexec,nosuid,size=512m
+    volumes:
+      - ./deploy/containers/entrypoint-redis.sh:/entrypoint-redis.sh:ro
+    networks:
+      wireguard:
+        ipv4_address: 10.101.0.4
+    secrets:
+      - redis_password
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $(cat /run/secrets/redis_password) ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+  # =============================================================================
+  # Mock SAML Identity Provider (Staging/Test Only)
+  # =============================================================================
+  # Production uses JHU Shibboleth - this container should NOT run in production
+
+  mock-idp:
+    image: ghcr.io/jhbiostatcenter/naaccord/mock-idp:latest
+    container_name: naaccord-mock-idp
+    profiles: ["staging-idp"]
+    ports:
+      - "8080:8080"
+    environment:
+      - SIMPLESAMLPHP_SECRET=${SIMPLESAMLPHP_SECRET:-defaultsecretchangeme}
+      - SIMPLESAMLPHP_ADMIN_PASSWORD=${SIMPLESAMLPHP_ADMIN_PASSWORD:-admin}
+      - SIMPLESAMLPHP_BASEURL=https://naaccord.pequod.sh/simplesaml/
+    volumes:
+      - ./deploy/containers/mock-idp/config:/var/simplesamlphp/config:ro
+      - ./deploy/containers/mock-idp/metadata:/var/simplesamlphp/metadata:ro
+      - ./deploy/keys/containers/mock-idp/cert:/var/simplesamlphp/cert:ro
+      - mock-idp-data:/var/simplesamlphp/data
+      - mock-idp-log:/var/simplesamlphp/log
+    networks:
+      - public
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/simplesaml/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # =============================================================================
+  # WireGuard Secure Tunnel (PHI Data Encryption - Production)
+  # =============================================================================
+
+  wireguard-web:
+    image: ${REGISTRY}/wireguard:${VERSION:-latest}
+    container_name: naaccord-wireguard-web
+    profiles: ["web"]
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    extra_hosts:
+      - "services.naaccord.lan:192.168.50.11"
+      - "db.naaccord.internal:10.100.0.11"  # Database via WireGuard tunnel
+      - "mock-idp.naaccord.lan:192.168.50.10"  # Mock IDP for staging
+    environment:
+      - WG_PRIVATE_KEY_FILE=/run/secrets/wg_web_private_key
+      - WG_PEER_PUBLIC_KEY_FILE=/run/secrets/wg_services_public_key
+      - WG_PRESHARED_KEY_FILE=/run/secrets/wg_preshared_key
+      - WG_TUNNEL_ADDRESS=10.100.0.10/24
+      - WG_PEER_ADDRESS=10.100.0.11
+      - WG_PEER_ENDPOINT=${SERVICES_SERVER_HOST}:51820
+      - WG_LISTEN_PORT=51820
+      - WG_LOG_LEVEL=error
+    volumes:
+      - /var/lib/docker/secrets:/run/secrets:ro
+    networks:
+      - internal
+      - public
+    ports:
+      - "80:80"
+      - "443:443"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/opt/wireguard/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  wireguard-services:
+    image: ${REGISTRY}/wireguard:${VERSION:-latest}
+    container_name: naaccord-wireguard-services
+    profiles: ["services"]
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - WG_PRIVATE_KEY_FILE=/run/secrets/wg_services_private_key
+      - WG_PEER_PUBLIC_KEY_FILE=/run/secrets/wg_web_public_key
+      - WG_PRESHARED_KEY_FILE=/run/secrets/wg_preshared_key
+      - WG_TUNNEL_ADDRESS=10.100.0.11/24
+      - WG_PEER_ADDRESS=10.100.0.10
+      - WG_LISTEN_PORT=51820
+      - WG_LOG_LEVEL=error
+      - WG_FORWARD_PORTS=3306:tcp:172.19.0.1 6379:tcp:10.101.0.4 8001:tcp:10.101.0.5  # Forward MariaDB to host, Redis/Django to containers
+    volumes:
+      - /var/lib/docker/secrets:/run/secrets:ro
+    ports:
+      - "51820:51820/udp"
+    networks:
+      default: {}  # Also attach to default bridge for port publishing to work
+      wireguard:
+        ipv4_address: 10.101.0.3
+      internal:  # Attach to internal network to reach MariaDB at 172.19.0.1
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/opt/wireguard/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # =============================================================================
+  # Application Services (Production Configuration)
+  # =============================================================================
+
+  nginx:
+    image: ${REGISTRY}/nginx:${VERSION:-latest}
+    container_name: naaccord-nginx
+    profiles: ["web"]
+    network_mode: service:wireguard-web
+    volumes:
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - /etc/ssl/private:/etc/ssl/private:ro
+      - django_static:/var/www/static:ro
+      - django_media:/var/www/media:ro
+      - ./deploy/configs/nginx:/etc/nginx/conf.d:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - web
+      - wireguard-web
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    image: ${REGISTRY}/web:${VERSION:-latest}
+    container_name: naaccord-web
+    profiles: ["web"]
+    network_mode: "service:wireguard-web"
+    user: "1000:1000"
+    tmpfs:
+      - /tmp
+      - /app/tmp
+    environment:
+      - DJANGO_SETTINGS_MODULE=depot.settings
+      - SERVER_ROLE=web
+      - INTERNAL_API_KEY_FILE=/run/secrets/internal_api_key
+      - SERVICES_URL=http://10.100.0.11:8001  # Services server via WireGuard tunnel
+      - DB_HOST=10.100.0.11  # MariaDB via WireGuard tunnel
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DATABASE_PASSWORD_FILE=/run/secrets/db_password
+      - DEBUG=False
+      - SECRET_KEY_FILE=/run/secrets/django_secret_key
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - USE_DOCKER_SAML=${USE_DOCKER_SAML}
+      - SAML_ENTITY_ID=${SAML_ENTITY_ID}
+      - SAML_ACS_URL=${SAML_ACS_URL}
+      - SAML_SLS_URL=${SAML_SLS_URL}
+      - SAML_IDP_METADATA_URL=${SAML_IDP_METADATA_URL}
+      - SAML_IDP_METADATA_FILE=${SAML_IDP_METADATA_FILE}
+    secrets:
+      - internal_api_key
+      - db_password
+      - django_secret_key
+      - redis_password
+    volumes:
+      - ./:/app  # Mount application code
+      - django_static:/app/staticfiles
+      - django_media:/app/media
+      - app_logs:/var/log/app
+    depends_on:
+      wireguard-web:
+        condition: service_healthy  # Wait for tunnel before starting
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:8000
+      - --workers=4
+      - --threads=2
+      - --worker-class=gthread
+      - --worker-tmp-dir=/tmp
+      - --timeout=600  # 10 minutes for large file uploads
+      - --access-logfile=/dev/null
+      - --error-logfile=-
+      - --log-level=info
+      - depot.wsgi:application
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 8G
+        reservations:
+          cpus: '1'
+          memory: 4G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+  services:
+    image: ${REGISTRY}/services:${VERSION:-latest}
+    container_name: naaccord-services
+    profiles: ["services"]
+    user: "1000:1000"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=4g  # Must exceed max upload size (3GB) for temp file handling
+    environment:
+      - DJANGO_SETTINGS_MODULE=depot.settings
+      - SERVER_ROLE=services
+      - INTERNAL_API_KEY_FILE=/run/secrets/internal_api_key
+      - DATABASE_HOST=${DATABASE_HOST}  # External MariaDB server
+      - DATABASE_PORT=${DATABASE_PORT:-3306}
+      - DATABASE_NAME=${DB_NAME}
+      - DATABASE_USER=${DB_USER}
+      - DATABASE_PASSWORD_FILE=/run/secrets/db_password
+      - DB_HOST=${DATABASE_HOST}  # Django compatibility
+      - DB_PORT=${DATABASE_PORT:-3306}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DEBUG=False
+      - SECRET_KEY_FILE=/run/secrets/django_secret_key
+      - NAS_WORKSPACE_PATH=/mnt/nas/workspace
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+    secrets:
+      - internal_api_key
+      - db_password
+      - django_secret_key
+      - redis_password
+    extra_hosts:
+      - "db.naaccord.internal:172.19.0.1"  # Allow containers to access host MariaDB via naaccord_internal gateway
+    volumes:
+      - ./:/app  # Mount application code
+      - django_static:/app/static
+      - django_media:/app/media
+      - ${NAS_MOUNT_POINT:-/mnt/nas}/uploads:/mnt/nas/uploads:rw
+      - ${NAS_MOUNT_POINT:-/mnt/nas}/submissions:/mnt/nas/submissions:rw
+      - ${NAS_MOUNT_POINT:-/mnt/nas}/reports:/mnt/nas/reports:rw
+      - ${NAS_MOUNT_POINT:-/mnt/nas}/workspace:/mnt/nas/workspace:rw
+      - app_logs:/var/log/app
+      - ./deploy/containers/healthcheck-services.sh:/healthcheck.sh:ro
+    networks:
+      wireguard:
+        ipv4_address: 10.101.0.5
+      internal:
+    ports:
+      - "8001:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+      wireguard-services:
+        condition: service_started
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:8001
+      - --workers=4
+      - --threads=2
+      - --worker-class=gthread
+      - --worker-tmp-dir=/tmp
+      - --timeout=600  # 10 minutes for large file uploads
+      - --access-logfile=-
+      - --error-logfile=-
+      - --log-level=info
+      - depot.wsgi:application
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+
+  celery:
+    image: ${REGISTRY}/services:${VERSION:-latest}
+    container_name: naaccord-celery
+    profiles: ["services"]
+    user: "1000:1000"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=4g  # Must exceed max upload size (3GB) for temp file handling
+    healthcheck:
+      test: ["CMD", "/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    environment:
+      - DJANGO_SETTINGS_MODULE=depot.settings
+      - SERVER_ROLE=services
+      - SERVICE_TYPE=celery
+      - DATABASE_HOST=${DATABASE_HOST}  # External MariaDB server
+      - DATABASE_PORT=3306
+      - DATABASE_NAME=${DB_NAME}
+      - DATABASE_USER=${DB_USER}
+      - DATABASE_PASSWORD_FILE=/run/secrets/db_password
+      - DB_HOST=${DATABASE_HOST}  # Django compatibility
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DEBUG=False
+      - SECRET_KEY_FILE=/run/secrets/django_secret_key
+      - NAS_WORKSPACE_PATH=/mnt/nas/workspace
+    secrets:
+      - db_password
+      - django_secret_key
+      - redis_password
+    extra_hosts:
+      - "db.naaccord.internal:172.19.0.1"  # Allow containers to access host MariaDB via naaccord_internal gateway
+    volumes:
+      - ./:/app  # Mount application code
+      - ${NAS_MOUNT_POINT:-/mnt/nas}/uploads:/mnt/nas/uploads:rw
+      - ${NAS_MOUNT_POINT:-/mnt/nas}/submissions:/mnt/nas/submissions:rw
+      - ${NAS_MOUNT_POINT:-/mnt/nas}/reports:/mnt/nas/reports:rw
+      - ${NAS_MOUNT_POINT:-/mnt/nas}/workspace:/mnt/nas/workspace:rw
+      - app_logs:/var/log/app
+      - ./deploy/containers/healthcheck-services.sh:/healthcheck.sh:ro
+    networks:
+      - internal
+      - wireguard
+    depends_on:
+      redis:
+        condition: service_healthy
+      services:
+        condition: service_started  # Wait for container start, not health (migrations run via Ansible)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 14G
+        reservations:
+          cpus: '1'
+          memory: 4G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    security_opt:
+      - no-new-privileges:true
+
+  celery-beat:
+    image: ${REGISTRY}/services:${VERSION:-latest}
+    container_name: naaccord-celery-beat
+    profiles: ["services"]
+    user: "1000:1000"
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    environment:
+      - DJANGO_SETTINGS_MODULE=depot.settings
+      - SERVER_ROLE=services
+      - SERVICE_TYPE=celery-beat
+      - DATABASE_HOST=${DATABASE_HOST}  # External MariaDB server
+      - DATABASE_PORT=3306
+      - DATABASE_NAME=${DB_NAME}
+      - DATABASE_USER=${DB_USER}
+      - DATABASE_PASSWORD_FILE=/run/secrets/db_password
+      - DB_HOST=${DATABASE_HOST}  # Django compatibility
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DEBUG=False
+      - SECRET_KEY_FILE=/run/secrets/django_secret_key
+    secrets:
+      - db_password
+      - django_secret_key
+      - redis_password
+    extra_hosts:
+      - "db.naaccord.internal:172.19.0.1"  # Allow containers to access host MariaDB via naaccord_internal gateway
+    volumes:
+      - ./:/app  # Mount application code
+      - app_logs:/var/log/app
+      - ./deploy/containers/healthcheck-services.sh:/healthcheck.sh:ro
+    networks:
+      - internal
+      - wireguard
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery:
+        condition: service_healthy
+    command:
+      - celery
+      - -A
+      - depot
+      - beat
+      - -l
+      - info
+      - --scheduler
+      - django_celery_beat.schedulers:DatabaseScheduler
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+    security_opt:
+      - no-new-privileges:true
+
+# =============================================================================
+# Networks
+# =============================================================================
+
+networks:
+  public:
+    driver: bridge
+    name: naaccord_public
+    attachable: true
+
+  internal:
+    driver: bridge
+    name: naaccord_internal
+    internal: true
+    attachable: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.19.0.0/16
+          gateway: 172.19.0.1
+
+  wireguard:
+    driver: bridge
+    name: naaccord_wireguard
+    internal: true
+    attachable: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.101.0.0/24
+
+# =============================================================================
+# Volumes
+# =============================================================================
+
+volumes:
+  django_static:
+    driver: local
+
+  django_media:
+    driver: local
+
+  app_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/log/naaccord
+
+  nginx_cache:
+    driver: local
+
+  mock-idp-data:
+    driver: local
+    name: naaccord-mock-idp-data
+
+  mock-idp-log:
+    driver: local
+    name: naaccord-mock-idp-log
+
+# =============================================================================
+# Secrets
+# =============================================================================
+
+secrets:
+  internal_api_key:
+    file: /var/lib/docker/secrets/internal_api_key
+
+  db_password:
+    file: /var/lib/docker/secrets/db_password
+
+  django_secret_key:
+    file: /var/lib/docker/secrets/django_secret_key
+
+  redis_password:
+    file: /var/lib/docker/secrets/redis_password
+
+  wg_web_private_key:
+    file: /var/lib/docker/secrets/wg_web_private_key
+
+  wg_web_public_key:
+    file: /var/lib/docker/secrets/wg_web_public_key
+
+  wg_services_private_key:
+    file: /var/lib/docker/secrets/wg_services_private_key
+
+  wg_services_public_key:
+    file: /var/lib/docker/secrets/wg_services_public_key
+
+  wg_preshared_key:
+    file: /var/lib/docker/secrets/wg_preshared_key

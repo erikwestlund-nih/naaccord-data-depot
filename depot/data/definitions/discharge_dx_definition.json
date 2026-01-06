@@ -1,0 +1,41 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "dischargeDx",
+    "type": "string",
+    "description": "ICD-9/10 code for discharge diagnosis. Send all available discharge diagnoses for each hospitalization. Only send diagnoses coded as 'discharge' (not 'admit' or 'inpatient').",
+    "example": "481, 518.83, V08, 070.70, 491.21, V46.2",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "dischargeDxDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date assigned to discharge diagnoses. Assign the date that the patient was discharged from the hospital (see Section 14.2)."
+  },
+  {
+    "name": "ranking",
+    "type": "string",
+    "description": "Principal discharge diagnosis is typically ranked '1', while additional diagnoses associated with the hospitalization will be ranked as '2' or higher.",
+    "example": "1, 2, 3, 4, 5, 6",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "source",
+    "type": "string",
+    "description": "Source of discharge diagnosis data.",
+    "example": "Data collected at NA-ACCORD site",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "encounterID",
+    "type": "string",
+    "description": "Unique sequence number that links clinical events associated with a record in the Hospitalization table. Be sure to use the same encounterID in both the Hospitalization and DischargeDx tables.",
+    "example": "1234567890"
+  }
+]

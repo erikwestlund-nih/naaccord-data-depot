@@ -1,0 +1,138 @@
+---
+# NAS Reset Role - Wipe NAS storage except base directory structure
+# WARNING: This deletes ALL PHI data on the NAS
+
+- name: Confirm NAS reset (if not using --skip-confirmation)
+  ansible.builtin.pause:
+    prompt: |
+      ⚠️  WARNING: This will DELETE ALL PHI DATA on the NAS!
+
+      Environment: {{ naaccord_environment }}
+      NAS Mount: {{ nas_mount_point }}
+
+      This will delete all files in:
+      - {{ nas_mount_point }}/uploads/*
+      - {{ nas_mount_point }}/submissions/*
+      - {{ nas_mount_point }}/reports/*
+      - {{ nas_mount_point }}/workspace/* (except structure)
+
+      Are you ABSOLUTELY SURE you want to continue? (yes/no)
+  register: reset_confirmation
+  when: not (ansible_skip_confirmation | default(false))
+  tags: ['nas', 'reset']
+
+- name: Abort if not confirmed
+  ansible.builtin.fail:
+    msg: "NAS reset aborted by user"
+  when:
+    - not (ansible_skip_confirmation | default(false))
+    - reset_confirmation.user_input | lower != 'yes'
+  tags: ['nas', 'reset']
+
+- name: Verify NAS mount is accessible
+  ansible.builtin.stat:
+    path: "{{ nas_mount_point }}"
+  register: nas_check
+  tags: ['nas', 'reset']
+
+- name: Fail if NAS mount not found
+  ansible.builtin.fail:
+    msg: "NAS mount point {{ nas_mount_point }} does not exist!"
+  when: not nas_check.stat.exists
+  tags: ['nas', 'reset']
+
+- name: Stop containers before wiping NAS (prevent corruption)
+  ansible.builtin.command:
+    cmd: docker compose -f {{ docker_compose_file }} --profile services stop
+    chdir: "{{ naaccord_repo_path }}"
+  register: docker_stop
+  changed_when: true
+  tags: ['nas', 'reset']
+
+- name: Wait for containers to stop
+  ansible.builtin.pause:
+    seconds: 5
+  tags: ['nas', 'reset']
+
+- name: Delete all files from uploads directory
+  ansible.builtin.shell:
+    cmd: rm -rf {{ nas_mount_point }}/uploads/*
+  register: wipe_uploads
+  changed_when: true
+  tags: ['nas', 'reset']
+
+- name: Delete all files from submissions directory
+  ansible.builtin.shell:
+    cmd: rm -rf {{ nas_mount_point }}/submissions/*
+  register: wipe_submissions
+  changed_when: true
+  tags: ['nas', 'reset']
+
+- name: Delete all files from reports directory
+  ansible.builtin.shell:
+    cmd: rm -rf {{ nas_mount_point }}/reports/*
+  register: wipe_reports
+  changed_when: true
+  tags: ['nas', 'reset']
+
+- name: Delete all files from workspace (except phi_workspace structure)
+  ansible.builtin.shell:
+    cmd: |
+      find {{ nas_mount_point }}/workspace -mindepth 1 -maxdepth 1 ! -name 'phi_workspace' -exec rm -rf {} +
+  register: wipe_workspace
+  changed_when: true
+  tags: ['nas', 'reset']
+
+- name: Delete all files from phi_workspace subdirectory
+  ansible.builtin.shell:
+    cmd: rm -rf {{ nas_mount_point }}/workspace/phi_workspace/*
+  register: wipe_phi_workspace
+  changed_when: true
+  tags: ['nas', 'reset']
+
+- name: Recreate base directory structure
+  ansible.builtin.file:
+    path: "{{ nas_mount_point }}/{{ item }}"
+    state: directory
+    owner: 1000
+    group: 1000
+    mode: '0775'
+  loop:
+    - uploads
+    - submissions
+    - reports
+    - workspace
+    - workspace/phi_workspace
+  tags: ['nas', 'reset', 'structure']
+
+- name: Start containers after NAS reset
+  ansible.builtin.command:
+    cmd: docker compose -f {{ docker_compose_file }} --profile services up -d
+    chdir: "{{ naaccord_repo_path }}"
+  register: docker_start
+  changed_when: true
+  tags: ['nas', 'reset']
+
+- name: Wait for containers to be healthy
+  ansible.builtin.pause:
+    seconds: 10
+  tags: ['nas', 'reset']
+
+- name: Display reset summary
+  ansible.builtin.debug:
+    msg: |
+      ✅ NAS reset complete!
+
+      Environment: {{ naaccord_environment }}
+      Mount Point: {{ nas_mount_point }}
+
+      Cleaned:
+      - uploads/
+      - submissions/
+      - reports/
+      - workspace/ (except phi_workspace directory)
+      - workspace/phi_workspace/
+
+      Fresh directory structure restored.
+      All services restarted.
+  tags: ['nas', 'reset']

@@ -1,0 +1,12 @@
+---
+# Just update the .env file without restarting containers
+# Used by deploy-update playbook for quick updates
+
+- name: Create environment file for docker-compose
+  ansible.builtin.template:
+    src: docker.env.j2
+    dest: "{{ naaccord_repo_path }}/.env"
+    owner: root
+    group: root
+    mode: '0644'
+  tags: ['docker', 'config']

@@ -1,0 +1,5 @@
+---
+# Legacy deploy.yml - redirects to deploy-update.yml
+# This file exists for backwards compatibility
+- name: Deploy NA-ACCORD Application Update
+  import_playbook: deploy-update.yml

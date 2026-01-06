@@ -1,0 +1,28 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "diagnosis",
+    "type": "string",
+    "description": "The label used by your cohort to specify the condition. Submit all instances of each diagnosis code, not just the earliest. May include: NA-ACCORD Standard Codes for AIDS-defining illnesses (ADIs), ICD-9 codes, ICD-10 codes, or ad-hoc diagnosis codes. DO NOT send rule-out diagnoses.",
+    "example": "PCP, MAC, 112, I21.01, Hypertension, Diabetes Type 2",
+    "summarizers": ["examples", "bar_chart"]
+  },
+  {
+    "name": "diagnosisDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Diagnosis date of the condition. Apply date rules in Section 2.5 for fuzzy or unknown dates."
+  },
+  {
+    "name": "source",
+    "type": "string",
+    "description": "Source of diagnosis. Use Section 2.6 to define source of diagnosis.",
+    "example": "D1, D2, D3, D4, D5",
+    "summarizers": ["examples", "bar_chart"]
+  }
+]

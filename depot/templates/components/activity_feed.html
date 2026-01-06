@@ -1,0 +1,104 @@
+<c-vars activities="" show_cohort="true" />
+
+<div class="flow-root">
+    <ul role="list" class="-mb-8">
+        {% for activity in activities %}
+        <li>
+            <div class="relative pb-8">
+                {% if not forloop.last %}
+                <span class="absolute left-4 top-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
+                {% endif %}
+                <div class="relative flex space-x-3">
+                    <div>
+                        <span class="h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white
+                            {% if activity.activity_type == 'LOGIN' or activity.activity_type == 'login' %}bg-green-100
+                            {% elif activity.activity_type == 'LOGOUT' or activity.activity_type == 'logout' %}bg-gray-100
+                            {% elif activity.activity_type == 'CREATE_SUBMISSION' %}bg-blue-100
+                            {% elif activity.activity_type == 'UPLOAD_FILE' or activity.activity_type == 'file_upload' %}bg-blue-100
+                            {% elif activity.activity_type == 'DELETE_FILE' or activity.activity_type == 'file_delete' %}bg-red-100
+                            {% elif activity.activity_type == 'PRECHECK_RUN' %}bg-purple-100
+                            {% elif activity.activity_type == 'file_download' %}bg-blue-100
+                            {% elif activity.activity_type == 'data_export' %}bg-purple-100
+                            {% else %}bg-gray-100{% endif %}">
+                            {% if activity.activity_type == 'LOGIN' or activity.activity_type == 'login' %}
+                                <c-icon icon="arrow-right-on-rectangle" family="solid" class="h-4 w-4 text-white" />
+                            {% elif activity.activity_type == 'LOGOUT' or activity.activity_type == 'logout' %}
+                                <c-icon icon="arrow-left-on-rectangle" family="solid" class="h-4 w-4 text-white" />
+                            {% elif activity.activity_type == 'CREATE_SUBMISSION' %}
+                                <c-icon icon="plus" family="solid" class="h-4 w-4 text-white" />
+                            {% elif activity.activity_type == 'UPLOAD_FILE' or activity.activity_type == 'file_upload' %}
+                                <c-icon icon="arrow-up-tray" family="solid" class="h-4 w-4 text-white" />
+                            {% elif activity.activity_type == 'DELETE_FILE' or activity.activity_type == 'file_delete' %}
+                                <c-icon icon="trash" family="solid" class="h-4 w-4 text-white" />
+                            {% elif activity.activity_type == 'PRECHECK_RUN' %}
+                                <c-icon icon="check-circle" family="solid" class="h-4 w-4 text-white" />
+                            {% elif activity.activity_type == 'file_download' %}
+                                <c-icon icon="arrow-down-tray" family="solid" class="h-4 w-4 text-white" />
+                            {% elif activity.activity_type == 'data_export' %}
+                                <c-icon icon="arrow-up-tray" family="solid" class="h-4 w-4 text-white" />
+                            {% else %}
+                                <c-icon icon="document" family="solid" class="h-4 w-4 text-white" />
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
+                        <div>
+                            <p class="text-sm text-gray-600">
+                                <span class="font-medium text-gray-900">{{ activity.user.get_full_name|default:activity.user.username }}</span>
+
+                                {% if activity.activity_type == 'data_create' or activity.activity_type == 'data_update' %}
+                                    {% if activity.details.model %}
+                                        {% load depot_filters %}
+                                        {% if activity.activity_type == 'data_create' %}created{% else %}updated{% endif %} {{ activity.details.model|add_spaces_to_camelcase|title }}
+                                    {% else %}
+                                        {{ activity.activity_type|lower|capfirst }}
+                                    {% endif %}
+                                {% elif activity.get_activity_type_display %}
+                                    {{ activity.get_activity_type_display|lower }}
+                                {% else %}
+                                    {{ activity.activity_type|lower|capfirst }}
+                                {% endif %}
+
+                                {% if show_cohort and activity.details.cohort_name %}
+                                    for <span class="font-medium">{{ activity.details.cohort_name }}</span>
+                                {% endif %}
+
+                                {% if activity.path %}
+                                    - <span class="font-mono text-xs">{{ activity.path }}</span>
+                                {% endif %}
+
+                                {% if activity.metadata %}
+                                    {% if activity.metadata.file_type %}
+                                        - {{ activity.metadata.file_type }}
+                                    {% endif %}
+                                    {% if activity.metadata.filename %}
+                                        <span class="text-xs text-gray-500">({{ activity.metadata.filename|truncatechars:30 }})</span>
+                                    {% endif %}
+                                {% endif %}
+
+                                {% if activity.details %}
+                                    {% if activity.details.resource_type %}
+                                        - {{ activity.details.resource_type|title }}
+                                    {% endif %}
+                                    {% if activity.details.resource_name %}
+                                        <span class="text-xs text-gray-500">({{ activity.details.resource_name|truncatechars:30 }})</span>
+                                    {% endif %}
+                                {% endif %}
+
+                                {% if activity.success is not None and not activity.success %}
+                                    <span class="ml-1 inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">
+                                        Failed
+                                    </span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="whitespace-nowrap text-right text-sm text-gray-500">
+                            <time datetime="{{ activity.timestamp|date:'c' }}">{{ activity.timestamp|timesince }} ago</time>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+</div>

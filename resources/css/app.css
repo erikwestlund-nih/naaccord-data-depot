@@ -1,0 +1,51 @@
+@import 'tailwindcss';
+
+@source '../../depot/**/*.py';
+@source '../../depot/**/*.html';
+@source '../../depot/templates/**/*.html';
+@source '../js/**/*.js';
+
+@layer base {
+    /* Alpine.js cloak to prevent flashing */
+    [x-cloak] {
+        display: none !important;
+    }
+    
+    /* Default select styling */
+    select {
+        @apply block w-full rounded-md bg-white py-1.5 pl-3 pr-8 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-600 sm:text-sm/6;
+    }
+    
+    /* Default input and textarea styling */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="search"],
+    input[type="tel"],
+    input[type="url"],
+    textarea {
+        @apply bg-white;
+    }
+}
+
+@layer components {
+    .svg-icon {
+        fill: currentColor;
+    }
+}
+
+@layer utilities {
+    @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+}

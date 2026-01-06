@@ -1,0 +1,177 @@
+---
+# Firewall role - Configure firewalld (RHEL/Rocky Linux)
+
+- name: Install firewalld package
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+  tags: ['firewall', 'security']
+
+- name: Start and enable firewalld service
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: yes
+  tags: ['firewall', 'security']
+
+- name: Set default zone to drop
+  ansible.posix.firewalld:
+    zone: drop
+    state: enabled
+    permanent: yes
+  tags: ['firewall', 'security']
+
+- name: Get active network interface
+  ansible.builtin.shell: |
+    ip route | grep default | awk '{print $5}' | head -1
+  register: default_interface
+  changed_when: false
+  tags: ['firewall', 'security']
+
+- name: Move interface to drop zone
+  ansible.posix.firewalld:
+    zone: drop
+    interface: "{{ default_interface.stdout }}"
+    permanent: yes
+    immediate: yes
+    state: enabled
+  when: default_interface.stdout != ""
+  tags: ['firewall', 'security']
+
+- name: Allow common ports (SSH)
+  ansible.posix.firewalld:
+    port: "{{ item.port }}/{{ item.proto }}"
+    zone: drop
+    state: enabled
+    permanent: yes
+    immediate: yes
+  loop: "{{ firewall_common_ports }}"
+  tags: ['firewall', 'security']
+
+- name: Allow services server specific ports in drop zone
+  ansible.posix.firewalld:
+    port: "{{ item.port }}/{{ item.proto }}"
+    zone: drop
+    state: enabled
+    permanent: yes
+    immediate: yes
+  loop: "{{ firewall_services_ports }}"
+  when: "'services' in group_names"
+  tags: ['firewall', 'security']
+
+- name: Allow services server specific ports in public zone (fallback)
+  ansible.posix.firewalld:
+    port: "{{ item.port }}/{{ item.proto }}"
+    zone: public
+    state: enabled
+    permanent: yes
+    immediate: yes
+  loop: "{{ firewall_services_ports }}"
+  when: "'services' in group_names"
+  tags: ['firewall', 'security']
+
+- name: Allow web server specific ports in drop zone
+  ansible.posix.firewalld:
+    port: "{{ item.port }}/{{ item.proto }}"
+    zone: drop
+    state: enabled
+    permanent: yes
+    immediate: yes
+  loop: "{{ firewall_web_ports }}"
+  when: "'web' in group_names"
+  tags: ['firewall', 'security']
+
+- name: Allow web server specific ports in public zone (fallback)
+  ansible.posix.firewalld:
+    port: "{{ item.port }}/{{ item.proto }}"
+    zone: public
+    state: enabled
+    permanent: yes
+    immediate: yes
+  loop: "{{ firewall_web_ports }}"
+  when:
+    - "'web' in group_names"
+    - "naaccord_environment != 'staging'"
+  tags: ['firewall', 'security']
+
+- name: Allow web server staging ports (mock IDP)
+  ansible.posix.firewalld:
+    port: "{{ item.port }}/{{ item.proto }}"
+    zone: drop
+    state: enabled
+    permanent: yes
+    immediate: yes
+  loop: "{{ firewall_web_staging_ports }}"
+  when:
+    - "'web' in group_names"
+    - "naaccord_environment == 'staging'"
+  tags: ['firewall', 'security']
+
+- name: Allow web server staging ports in public zone (fallback)
+  ansible.posix.firewalld:
+    port: "{{ item.port }}/{{ item.proto }}"
+    zone: public
+    state: enabled
+    permanent: yes
+    immediate: yes
+  loop: "{{ firewall_web_staging_ports }}"
+  when:
+    - "'web' in group_names"
+    - "naaccord_environment == 'staging'"
+  tags: ['firewall', 'security']
+
+- name: Allow Docker default bridge network to access MariaDB (services server)
+  ansible.posix.firewalld:
+    rich_rule: 'rule family="ipv4" source address="172.17.0.0/16" port port="3306" protocol="tcp" accept'
+    zone: public
+    state: enabled
+    permanent: yes
+    immediate: yes
+  when: "'services' in group_names"
+  tags: ['firewall', 'security', 'database']
+
+- name: Allow Docker naaccord_internal network to access MariaDB (services server)
+  ansible.posix.firewalld:
+    rich_rule: 'rule family="ipv4" source address="172.19.0.0/16" port port="3306" protocol="tcp" accept'
+    zone: public
+    state: enabled
+    permanent: yes
+    immediate: yes
+  when: "'services' in group_names"
+  tags: ['firewall', 'security', 'database']
+
+- name: Allow Docker alternative internal network range to access MariaDB (services server)
+  ansible.posix.firewalld:
+    rich_rule: 'rule family="ipv4" source address="172.18.0.0/16" port port="3306" protocol="tcp" accept'
+    zone: public
+    state: enabled
+    permanent: yes
+    immediate: yes
+  when: "'services' in group_names"
+  tags: ['firewall', 'security', 'database']
+
+- name: Allow Docker naaccord_wireguard network to access MariaDB (services server)
+  ansible.posix.firewalld:
+    rich_rule: 'rule family="ipv4" source address="10.101.0.0/24" port port="3306" protocol="tcp" accept'
+    zone: public
+    state: enabled
+    permanent: yes
+    immediate: yes
+  when: "'services' in group_names"
+  tags: ['firewall', 'security', 'database']
+
+- name: Reload firewalld to apply changes
+  ansible.builtin.command: firewall-cmd --reload
+  changed_when: false
+  tags: ['firewall', 'security']
+
+- name: Verify firewall rules
+  ansible.builtin.command: firewall-cmd --list-all --zone=drop
+  register: firewall_status
+  changed_when: false
+  tags: ['firewall', 'verify']
+
+- name: Display active firewall rules
+  ansible.builtin.debug:
+    msg: "{{ firewall_status.stdout_lines }}"
+  tags: ['firewall', 'verify']

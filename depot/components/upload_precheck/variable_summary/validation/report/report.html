@@ -1,0 +1,60 @@
+<div class="py-0.5">
+    <dl class="divide-y divide-gray-100">
+        {% component "audit.variable_summary.row" name="Total Checks" subtle=True %} {{ total }} {% endcomponent %}
+        {% if total > 0 %}
+            {% component "audit.variable_summary.row" name="Passing" subtle=True %} {{ passing }} {% endcomponent %}
+            {% component "audit.variable_summary.row" name="Pass Rate" value_type="percent" subtle=True %}
+                {{ pass_rate }} {% endcomponent %}
+
+            {% if results %}
+                {% for result in results %}
+                    {% component "audit.variable_summary.row" name=result.display_name subtle=True %}
+                        <div>
+                            <div class="flex flex-col gap-y-2">
+                                {% if result.report.pass and not result.report.warnings %}
+                                    <!-- Pure Pass -->
+                                    <div class="flex items-center gap-x-2">
+                                        {% component "icon" icon="check" family="solid" c="h-3 w-3 text-green-700" / %}
+                                        <span class="text-xs">Pass</span>
+                                    </div>
+                                {% endif %}
+
+                                {% if result.report.failure_messages %}
+                                    <!-- Failure -->
+                                    <div class="flex items-center gap-x-2">
+                                        {% component "icon" icon="triangle-exclamation" family="solid" c="h-3 w-3 text-red-700" / %}
+                                        <span class="font-semibold text-red-800 text-xs">Fail</span>
+                                    </div>
+                                    <ul class="text-gray-700 text-xs/5 mt-0">
+                                        {% for message in result.report.failure_messages %}
+                                            <li class="text-red-700">{{ message }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+
+                                {% if result.report.warnings %}
+                                    <!-- Warnings for this specific result -->
+                                    <div class="flex items-center gap-x-2 mt-2">
+                                        {% component "icon" icon="triangle-exclamation" family="solid" c="h-3 w-3 text-amber-600" / %}
+                                        <span class="font-semibold text-amber-700 text-xs">Warning</span>
+                                    </div>
+                                    <ul class="text-gray-700 text-xs/5 mt-0">
+                                        {% for warning in result.report.warnings %}
+                                            <li class="text-yellow-700">{{ warning }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+
+                            {% if result.report.errors %}
+                                <div class="mt-2">
+                                    {% component "audit.variable_summary.validation.error_summary" errors=result.report.errors render_empty=result.report.render_empty / %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endcomponent %}
+                {% endfor %}
+            {% endif %}
+        {% endif %}
+    </dl>
+</div>

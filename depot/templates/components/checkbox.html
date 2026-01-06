@@ -1,0 +1,11 @@
+<c-vars id="" name="" value="" checked="false" disabled="false" class="" />
+
+<input 
+    type="checkbox"
+    {% if id %}id="{{ id }}"{% endif %}
+    {% if name %}name="{{ name }}"{% endif %}
+    {% if value %}value="{{ value }}"{% endif %}
+    {% if checked == "true" %}checked{% endif %}
+    {% if disabled == "true" %}disabled{% endif %}
+    class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded {{ class }}"
+/>

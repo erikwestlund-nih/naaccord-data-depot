@@ -1,0 +1,148 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "label": "Patient ID",
+    "description": "De-identified patient identification code",
+    "validators": ["no_duplicates"]
+  },
+  {
+    "name": "birthSex",
+    "type": "enum",
+    "label": "Birth sex",
+    "allowed_values": ["Female", "Male", "Intersexed"],
+    "description": "Sex at birth",
+    "validators": [
+      {"name": "required_when", "params": {"absent": "presentSex"}},
+      {"name": "forbidden_when", "params": {"present": "presentSex", "severity": "warning"}}
+    ],
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "presentSex",
+    "type": "enum",
+    "label": "Present sex",
+    "allowed_values": ["Female", "Male", "Intersexed"],
+    "validators": [
+      {"name": "required_when", "params": {"absent": "birthSex"}},
+      {"name": "forbidden_when", "params": {"present": "birthSex", "severity": "warning"}}
+    ],
+    "description": "Present sex",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "birthYear",
+    "type": "year",
+    "label": "Birth year",
+    "validators": [{"name": "range", "params": [1900, 2025]}],
+    "description": "Year of patient's birth",
+    "summarizers": ["histogram"]
+  },
+  {
+    "name": "race",
+    "type": "enum",
+    "label": "Race",
+    "allowed_values": [
+      "American Indian",
+      "Asian",
+      "Black",
+      "Pacific Islander",
+      "White",
+      "Asian/Pacific Islander",
+      "Multiracial",
+      "Other",
+      "Unknown"
+    ],
+    "description": "Patient's race",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "hispanic",
+    "type": "boolean",
+    "label": "Hispanic ethnicity",
+    "allowed_values": {"true": ["Yes"], "false": ["No"], "Unknown": ["Unknown"]},
+    "description": "Patient's Hispanic ethnicity status",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "enrollDate",
+    "type": "date",
+    "label": "Enrollment date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date the patient enrolled in your cohort (PT0)"
+  },
+  {
+    "name": "lastActivityDate",
+    "type": "date",
+    "label": "Last activity date",
+    "date_format": "YYYY-MM-DD",
+    "description": "The date of the last recorded patient activity"
+  },
+  {
+    "name": "deathDate",
+    "type": "date",
+    "label": "Death date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Patient's death date",
+    "value_optional": true
+  },
+  {
+    "name": "deathDateSource",
+    "type": "string",
+    "label": "Death date source",
+    "description": "Source of patient's death date information. Valid codes: 1=Clinic Reported, 2=Death certificate, 3=NDI, 4=NDI+, 5=Provincial Death Index, 6=SSDI, 7=Other (specify), 8=Medical Record Review, 9=Unknown. Can submit numeric or text value.",
+    "example": "Clinic Reported, Death certificate, 3, 6",
+    "validators": [
+      {"name": "forbidden_when", "params": {"absent": "deathDate"}},
+      {"name": "required_when", "params": {"present": "deathDate"}}
+    ]
+  },
+  {
+    "name": "subSiteID",
+    "type": "string",
+    "label": "Sub-site ID",
+    "description": "ID indicator for sub-sites within cohorts. Use this field for NA-ACCORD cohorts comprised of multiple sites (such as HOPS and MWCCS).",
+    "value_optional": true,
+    "example": "003"
+  },
+  {
+    "name": "hivNegative",
+    "type": "enum",
+    "label": "HIV status",
+    "description": "Indicates that the patient is a member of an HIV Negative cohort. Use 'Y' for HIV negative patients, 'S' for sero-converted patients.",
+    "allowed_values": [
+      {"value": "Y", "description": "HIV Negative"},
+      {"value": "S", "description": "Sero-converted"}
+    ],
+    "value_optional": true,
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "BirthCountry",
+    "type": "string",
+    "label": "Birth country",
+    "description": "Country of patient's birth. May be computed from Province (BirthCountry=Canada) or State (BirthCountry=US) if known.",
+    "value_optional": true,
+    "example": "Somalia"
+  },
+  {
+    "name": "transgendered",
+    "type": "boolean",
+    "label": "Transgender status",
+    "description": "Transgender status. Note: This field would be labeled 'transgender' if we were to establish it today. At the time the NA-ACCORD data repository was established, 'transgendered' was considered an acceptable label. This field will retain the label 'transgendered' for data submissions due to the number of changes required (many of which are down-stream from data collection) to modify a variable label.",
+    "allowed_values": {
+      "true": ["Yes"],
+      "false": ["No"]
+    },
+    "value_optional": true,
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "LastNDIDate",
+    "type": "date",
+    "label": "Last NDI date",
+    "description": "Last date patient was submitted to NDI (National Death Index) and successfully matched for death information collection. For US cohorts only.",
+    "date_format": "YYYY-MM-DD",
+    "value_optional": true
+  }
+]

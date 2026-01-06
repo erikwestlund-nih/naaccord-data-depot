@@ -1,0 +1,23 @@
+# Core Celery dependencies
+celery==5.5.1
+redis==5.2.1
+kombu==5.5.2
+
+# Django and database
+Django==5.0.9
+mysqlclient==2.2.4
+django-environ==0.11.2
+django_celery_results==2.6.0
+django_components==0.101
+django-cotton==2.0.3
+
+# Storage and utilities
+boto3==1.37.33
+PyYAML==6.0.2
+duckdb==0.10.0
+pandas==2.2.3
+httpx==0.28.1
+
+# Required for tasks
+Faker==30.3.0
+humanize==4.12.2

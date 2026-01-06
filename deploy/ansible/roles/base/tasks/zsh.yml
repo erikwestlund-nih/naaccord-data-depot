@@ -1,0 +1,83 @@
+---
+# Shell environment setup with zsh and oh-my-zsh
+# Only installs for the current user (ansible_user_id), excluding root
+- name: Install zsh
+  ansible.builtin.dnf:
+    name: zsh
+    state: present
+  when: ansible_user_id != 'root'
+  tags:
+    - base
+    - zsh
+
+- name: Get current user's home directory
+  ansible.builtin.shell: |
+    getent passwd {{ ansible_user_id }} | cut -d: -f6
+  register: user_home
+  changed_when: false
+  when: ansible_user_id != 'root'
+  tags:
+    - base
+    - zsh
+
+- name: Check if oh-my-zsh is already installed
+  ansible.builtin.stat:
+    path: "{{ user_home.stdout }}/.oh-my-zsh"
+  register: ohmyzsh_installed
+  when: ansible_user_id != 'root'
+  tags:
+    - base
+    - zsh
+
+- name: Download oh-my-zsh installation script
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
+    dest: /tmp/install_ohmyzsh.sh
+    mode: '0755'
+  when:
+    - ansible_user_id != 'root'
+    - not ohmyzsh_installed.stat.exists
+  tags:
+    - base
+    - zsh
+
+- name: Install oh-my-zsh for current user
+  ansible.builtin.shell: |
+    sh /tmp/install_ohmyzsh.sh --unattended
+  become: no
+  when:
+    - ansible_user_id != 'root'
+    - not ohmyzsh_installed.stat.exists
+  tags:
+    - base
+    - zsh
+
+- name: Configure oh-my-zsh with agnoster theme
+  ansible.builtin.template:
+    src: zshrc.j2
+    dest: "{{ user_home.stdout }}/.zshrc"
+    owner: "{{ ansible_user_id }}"
+    mode: '0644'
+  become: no
+  when: ansible_user_id != 'root'
+  tags:
+    - base
+    - zsh
+
+- name: Set zsh as default shell for current user
+  ansible.builtin.user:
+    name: "{{ ansible_user_id }}"
+    shell: /bin/zsh
+  when: ansible_user_id != 'root'
+  tags:
+    - base
+    - zsh
+
+- name: Clean up installation script
+  ansible.builtin.file:
+    path: /tmp/install_ohmyzsh.sh
+    state: absent
+  when: ansible_user_id != 'root'
+  tags:
+    - base
+    - zsh

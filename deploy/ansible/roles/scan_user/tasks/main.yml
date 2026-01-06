@@ -1,0 +1,31 @@
+---
+# Main tasks for scan_user role
+# This role provides operations for managing Acunetix security scan user accounts
+
+- name: Include create tasks
+  ansible.builtin.include_tasks: create.yml
+  when: scan_user_action == 'create'
+  tags:
+    - scan_user
+    - scan_user_create
+
+- name: Include escalate tasks
+  ansible.builtin.include_tasks: escalate.yml
+  when: scan_user_action == 'escalate'
+  tags:
+    - scan_user
+    - scan_user_escalate
+
+- name: Include deescalate tasks
+  ansible.builtin.include_tasks: deescalate.yml
+  when: scan_user_action == 'deescalate'
+  tags:
+    - scan_user
+    - scan_user_deescalate
+
+- name: Include remove tasks
+  ansible.builtin.include_tasks: remove.yml
+  when: scan_user_action == 'remove'
+  tags:
+    - scan_user
+    - scan_user_remove

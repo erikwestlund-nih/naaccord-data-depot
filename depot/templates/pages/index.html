@@ -1,0 +1,16 @@
+<c-app-page title="NA Accord Data Depot">
+
+    <c-page_header 
+        heading="NA Accord Data Depot" 
+        blurb="Welcome to the NA Accord Data depot. You can use this application to upload, validate, and view your team's data submissions." 
+    />
+
+    <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-6">
+        <c-button href="{% url 'submissions.upload' %}" variant="primary">
+            Upload A Submission
+        </c-button>
+        <a href="{% url 'submissions' %}" class="text-sm font-semibold leading-6 text-blue-700 hover:text-blue-600">
+            View past submissions
+        </a>
+    </div>
+</c-app-page>

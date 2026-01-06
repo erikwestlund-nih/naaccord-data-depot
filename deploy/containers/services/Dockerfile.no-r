@@ -1,0 +1,88 @@
+# Optimized Services Container WITHOUT R and Quarto
+# Much smaller and faster to build than the R-based version
+
+# Stage 1: Python dependencies
+FROM python:3.12-slim AS python-builder
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy and install Python requirements
+COPY requirements-base.txt requirements-services.txt /tmp/
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r /tmp/requirements-services.txt
+
+# Stage 2: Final production image
+FROM python:3.12-slim
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build tools for Python packages with C extensions
+    build-essential \
+    gcc \
+    g++ \
+    # Database
+    default-libmysqlclient-dev \
+    pkg-config \
+    # File type detection
+    libmagic1 \
+    # Process monitoring
+    curl \
+    # SAML authentication
+    xmlsec1 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python virtual environment
+COPY --from=python-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Create non-root user
+RUN useradd -m -u 1000 -s /bin/bash appuser
+
+# Create necessary directories (including Django storage directories)
+RUN mkdir -p /app /app/static /app/media /app/logs \
+    /app/resources/storage/uploads/audit \
+    /app/resources/storage/data \
+    /app/resources/storage/downloads \
+    /app/resources/storage/scratch \
+    /app/resources/nas \
+    /app/storage/nas \
+    /mnt/nas && \
+    chown -R appuser:appuser /app
+
+# Set working directory
+WORKDIR /app
+
+# Copy application code
+COPY --chown=appuser:appuser . .
+
+# Remove .env.example
+RUN rm -f /app/.env.example
+
+# Copy entrypoint script
+COPY --chown=appuser:appuser deploy/containers/entrypoint-services.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Switch to non-root user
+USER appuser
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DJANGO_SETTINGS_MODULE=depot.settings \
+    SERVER_ROLE=services \
+    PATH="/opt/venv/bin:$PATH"
+
+# Expose port
+EXPOSE 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8001/health/')" || exit 1
+
+# Use flexible entrypoint
+ENTRYPOINT ["/entrypoint.sh"]

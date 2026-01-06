@@ -1,0 +1,8 @@
+---
+# Docker services handlers
+
+- name: Restart Docker services
+  ansible.builtin.command:
+    cmd: docker compose -f {{ docker_compose_file }} {{ docker_profile_flags }} up -d --force-recreate
+    chdir: "{{ naaccord_repo_path }}"
+  tags: ['docker']

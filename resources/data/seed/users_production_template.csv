@@ -1,0 +1,6 @@
+username,email,first_name,last_name,is_staff,is_superuser
+ewestlund,ewestlund@jhu.edu,Erik,Westlund,True,True
+ahackman,ahackman@jhu.edu,Andre,Hackman,True,True
+kalthoff,kalothoff@jhu.edu,Keri,Althoff,True,False
+bhogan,bhogan7@jhu.edu,Brenna,Hogan,True,False
+clesko,clesko2@jhu.edu,Catherine,Lesko,True,False

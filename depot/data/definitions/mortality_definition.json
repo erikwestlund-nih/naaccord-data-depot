@@ -1,0 +1,30 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "cause",
+    "type": "string",
+    "description": "Submit cause of death code(s) for this patient. Send ALL causes of death from ALL available sources. If a patient has the same cause from multiple sources (e.g., 'Myocardial Infarction' from both death certificate and medical record review), send both records as separate entries.",
+    "example": "Cardiopulmonary arrest, HCV with liver failure, Chronic alcohol abuse, PCP, ESLD, Upper GI Bleed",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "type",
+    "type": "string",
+    "description": "Code for classifying causes of death. Valid codes: 1=Immediate cause of death, 2=Contributing causes of death, 3=Underlying cause of death, 4=Primary cause of death (equivalent to underlying), 5=Secondary cause of death (equivalent to contributing), 6=NDI+ Record Axis. Leave BLANK if your site does not classify causes of death.",
+    "example": "1, 2, 3, 4, 5, 6",
+    "value_optional": true,
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "source",
+    "type": "string",
+    "description": "Source of cause of death information. Valid codes: 1=Medical Record Review, 2=Death certificate, 3=NDI+ Entity Axis, 4=NDI+ Record Axis, 5=Provincial Death Index, 6=Other (specify), 9=Unknown. You may submit either the numeric or text value.",
+    "example": "1, 2, Medical Record Review, Death certificate, NDI+ Record Axis",
+    "summarizers": ["bar_chart"]
+  }
+]

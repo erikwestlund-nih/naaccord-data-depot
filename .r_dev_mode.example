@@ -1,0 +1,14 @@
+# R Development Mode Configuration
+# Copy this file to .r_dev_mode to enable local NAATools development
+
+# Path to local NAATools package directory
+NAATOOLS_DIR=$HOME/code/NAATools
+
+# When this file exists, scaffold_r.R will load NAATools from the local directory
+# instead of installing from GitHub. This is useful during development.
+#
+# To enable:
+# cp .r_dev_mode.example .r_dev_mode
+# 
+# To disable:
+# rm .r_dev_mode

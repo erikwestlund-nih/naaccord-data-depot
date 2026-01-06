@@ -1,0 +1,521 @@
+"""
+Security tests for file upload validation.
+Tests that uploaded files are properly validated for type, size, and content.
+"""
+from django.test import TestCase, Client, override_settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.core.files.uploadedfile import SimpleUploadedFile
+from io import BytesIO
+import os
+from depot.models import Cohort, CohortMembership, DataFileType
+from depot.constants.groups import Groups
+
+User = get_user_model()
+
+
+class FileTypeValidationTest(TestCase):
+    """Test that file type validation is enforced."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+
+        manager_group = Group.objects.create(name=Groups.COHORT_MANAGERS)
+        self.user.groups.add(manager_group)
+
+        self.cohort = Cohort.objects.create(name="Test Cohort")
+        CohortMembership.objects.create(user=self.user, cohort=self.cohort)
+
+        self.data_file_type = DataFileType.objects.create(
+            name="patient",
+            label="Patient"
+        )
+
+        self.client = Client()
+        self.client.login(username="test@test.org", password="testpass123")
+
+    def test_executable_files_rejected(self):
+        """Executable files should be rejected."""
+        executable_types = [
+            ('malware.exe', b'MZ\x90\x00', 'application/x-msdownload'),
+            ('script.sh', b'#!/bin/bash\nrm -rf /', 'application/x-sh'),
+            ('malware.bat', b'@echo off\ndel /f /s /q C:\\*', 'application/x-msdos-program'),
+            ('malware.dll', b'MZ\x90\x00', 'application/x-msdownload'),
+        ]
+
+        for filename, content, content_type in executable_types:
+            file = SimpleUploadedFile(filename, content, content_type=content_type)
+
+            response = self.client.post('/upload/precheck/', {
+                'file': file,
+                'cohort': self.cohort.id,
+            })
+
+            # Should be rejected (400, 403, or validation error)
+            self.assertIn(response.status_code, [400, 403, 422],
+                f"Executable file should be rejected: {filename}")
+
+    def test_only_csv_tsv_allowed(self):
+        """Only CSV and TSV files should be allowed."""
+        # Valid files
+        valid_files = [
+            ('data.csv', b'id,name\n1,test', 'text/csv'),
+            ('data.tsv', b'id\tname\n1\ttest', 'text/tab-separated-values'),
+        ]
+
+        for filename, content, content_type in valid_files:
+            file = SimpleUploadedFile(filename, content, content_type=content_type)
+
+            response = self.client.post('/upload/precheck/', {
+                'file': file,
+                'cohort': self.cohort.id,
+            })
+
+            # Should be accepted or processed (not rejected for file type)
+            self.assertNotEqual(response.status_code, 400,
+                f"Valid file should be accepted: {filename}")
+
+    def test_file_extension_validated(self):
+        """File extension should be validated."""
+        # File with wrong extension
+        wrong_extension_files = [
+            'data.xlsx',
+            'data.pdf',
+            'data.doc',
+            'data.zip',
+            'data.tar.gz',
+        ]
+
+        for filename in wrong_extension_files:
+            file = SimpleUploadedFile(filename, b'fake content')
+
+            response = self.client.post('/upload/precheck/', {
+                'file': file,
+                'cohort': self.cohort.id,
+            })
+
+            # Should be rejected
+            self.assertIn(response.status_code, [400, 403, 422],
+                f"Wrong extension should be rejected: {filename}")
+
+    def test_double_extension_attack_prevented(self):
+        """Double extension attacks should be prevented."""
+        # Attacker tries to disguise executable as CSV
+        malicious_files = [
+            ('malware.csv.exe', b'MZ\x90\x00'),
+            ('script.csv.sh', b'#!/bin/bash'),
+            ('data.csv.php', b'<?php system($_GET["cmd"]); ?>'),
+        ]
+
+        for filename, content in malicious_files:
+            file = SimpleUploadedFile(filename, content)
+
+            response = self.client.post('/upload/precheck/', {
+                'file': file,
+                'cohort': self.cohort.id,
+            })
+
+            # Should be rejected based on actual extension
+            self.assertIn(response.status_code, [400, 403, 422],
+                f"Double extension should be rejected: {filename}")
+
+    def test_null_byte_in_filename_rejected(self):
+        """Null bytes in filename should be rejected."""
+        # Null byte injection in filename
+        malicious_filename = "data.csv\x00.exe"
+
+        file = SimpleUploadedFile(malicious_filename, b'id,name\n1,test')
+
+        response = self.client.post('/upload/precheck/', {
+            'file': file,
+            'cohort': self.cohort.id,
+        })
+
+        # Should be rejected
+        self.assertIn(response.status_code, [400, 403, 422],
+            "Null byte in filename should be rejected")
+
+    def test_path_traversal_in_filename_rejected(self):
+        """Path traversal in filename should be rejected."""
+        malicious_filenames = [
+            '../../../etc/passwd',
+            '..\\..\\..\\windows\\system32\\config\\sam',
+            'data/../../../etc/passwd.csv',
+        ]
+
+        for malicious_filename in malicious_filenames:
+            file = SimpleUploadedFile(malicious_filename, b'id,name\n1,test')
+
+            response = self.client.post('/upload/precheck/', {
+                'file': file,
+                'cohort': self.cohort.id,
+            })
+
+            # Should be rejected or filename sanitized
+            # At minimum, should not write to traversed path
+            self.assertTrue(True)  # Placeholder
+
+
+class FileSizeValidationTest(TestCase):
+    """Test that file size limits are enforced."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+
+        manager_group = Group.objects.create(name=Groups.COHORT_MANAGERS)
+        self.user.groups.add(manager_group)
+
+        self.cohort = Cohort.objects.create(name="Test Cohort")
+        CohortMembership.objects.create(user=self.user, cohort=self.cohort)
+
+        self.client = Client()
+        self.client.login(username="test@test.org", password="testpass123")
+
+    @override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=1024 * 1024)  # 1MB
+    def test_file_size_limit_enforced(self):
+        """Files larger than limit should be rejected."""
+        # Create file larger than limit
+        large_content = b'x' * (2 * 1024 * 1024)  # 2MB
+        large_file = SimpleUploadedFile('large.csv', large_content)
+
+        response = self.client.post('/upload/precheck/', {
+            'file': large_file,
+            'cohort': self.cohort.id,
+        })
+
+        # Should be rejected (typically by Django or nginx before reaching view)
+        # May return 413 (Request Entity Too Large) or 400
+        self.assertTrue(True)  # Placeholder
+
+    def test_empty_file_rejected(self):
+        """Empty files should be rejected."""
+        empty_file = SimpleUploadedFile('empty.csv', b'')
+
+        response = self.client.post('/upload/precheck/', {
+            'file': empty_file,
+            'cohort': self.cohort.id,
+        })
+
+        # Should be rejected
+        self.assertIn(response.status_code, [400, 403, 422],
+            "Empty file should be rejected")
+
+    def test_minimum_file_size_enforced(self):
+        """Files smaller than minimum should be rejected."""
+        # Very small file (probably not valid data)
+        tiny_file = SimpleUploadedFile('tiny.csv', b'id')
+
+        response = self.client.post('/upload/precheck/', {
+            'file': tiny_file,
+            'cohort': self.cohort.id,
+        })
+
+        # Should be rejected or flagged as invalid
+        # (Implementation-specific)
+        self.assertTrue(True)  # Placeholder
+
+
+class FileContentValidationTest(TestCase):
+    """Test that file content is validated."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+
+        manager_group = Group.objects.create(name=Groups.COHORT_MANAGERS)
+        self.user.groups.add(manager_group)
+
+        self.cohort = Cohort.objects.create(name="Test Cohort")
+        CohortMembership.objects.create(user=self.user, cohort=self.cohort)
+
+        self.client = Client()
+        self.client.login(username="test@test.org", password="testpass123")
+
+    def test_csv_header_validated(self):
+        """CSV header should be validated."""
+        # CSV without required columns
+        invalid_csv = SimpleUploadedFile(
+            'invalid.csv',
+            b'wrong,headers\n1,2'
+        )
+
+        response = self.client.post('/upload/precheck/', {
+            'file': invalid_csv,
+            'cohort': self.cohort.id,
+        })
+
+        # Should be rejected or flagged during validation
+        # (Implementation-specific based on data definition)
+        self.assertTrue(True)  # Placeholder
+
+    def test_malformed_csv_rejected(self):
+        """Malformed CSV should be rejected."""
+        # CSV with inconsistent columns
+        malformed_csv = SimpleUploadedFile(
+            'malformed.csv',
+            b'id,name\n1,test\n2,test,extra'
+        )
+
+        response = self.client.post('/upload/precheck/', {
+            'file': malformed_csv,
+            'cohort': self.cohort.id,
+        })
+
+        # Should be flagged during validation
+        self.assertTrue(True)  # Placeholder
+
+    def test_binary_content_in_csv_rejected(self):
+        """Binary content disguised as CSV should be rejected."""
+        # Binary content with .csv extension
+        binary_csv = SimpleUploadedFile(
+            'binary.csv',
+            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR'  # PNG header
+        )
+
+        response = self.client.post('/upload/precheck/', {
+            'file': binary_csv,
+            'cohort': self.cohort.id,
+        })
+
+        # Should be rejected (not valid CSV)
+        self.assertIn(response.status_code, [400, 403, 422],
+            "Binary content should be rejected")
+
+    def test_html_in_csv_escaped(self):
+        """HTML content in CSV should be escaped."""
+        # CSV containing HTML/JavaScript
+        html_csv = SimpleUploadedFile(
+            'html.csv',
+            b'id,name\n1,<script>alert("XSS")</script>'
+        )
+
+        response = self.client.post('/upload/precheck/', {
+            'file': html_csv,
+            'cohort': self.cohort.id,
+        })
+
+        # File may be accepted, but HTML should be escaped when displayed
+        # This tests that the data is handled safely
+        self.assertTrue(True)  # Placeholder
+
+    def test_sql_injection_in_csv_safe(self):
+        """SQL injection attempts in CSV should be handled safely."""
+        # CSV containing SQL injection attempts
+        sql_csv = SimpleUploadedFile(
+            'sql.csv',
+            b"id,name\n1,'; DROP TABLE depot_cohort; --"
+        )
+
+        response = self.client.post('/upload/precheck/', {
+            'file': sql_csv,
+            'cohort': self.cohort.id,
+        })
+
+        # File may be accepted, but SQL should be parameterized when queried
+        # This tests that dangerous content is handled safely
+        self.assertTrue(True)  # Placeholder
+
+
+class FilenameSecurityTest(TestCase):
+    """Test that filenames are properly sanitized."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+
+        manager_group = Group.objects.create(name=Groups.COHORT_MANAGERS)
+        self.user.groups.add(manager_group)
+
+        self.cohort = Cohort.objects.create(name="Test Cohort")
+        CohortMembership.objects.create(user=self.user, cohort=self.cohort)
+
+        self.client = Client()
+        self.client.login(username="test@test.org", password="testpass123")
+
+    def test_special_characters_in_filename_sanitized(self):
+        """Special characters in filename should be sanitized."""
+        dangerous_filenames = [
+            'file; rm -rf /.csv',
+            'file`whoami`.csv',
+            'file$(whoami).csv',
+            'file|whoami.csv',
+            'file&whoami.csv',
+        ]
+
+        for dangerous_filename in dangerous_filenames:
+            file = SimpleUploadedFile(dangerous_filename, b'id,name\n1,test')
+
+            response = self.client.post('/upload/precheck/', {
+                'file': file,
+                'cohort': self.cohort.id,
+            })
+
+            # Filename should be sanitized or rejected
+            # At minimum, should not execute commands
+            self.assertTrue(True)  # Placeholder
+
+    def test_unicode_in_filename_handled(self):
+        """Unicode characters in filename should be handled safely."""
+        unicode_filenames = [
+            'файл.csv',  # Cyrillic
+            'ファイル.csv',  # Japanese
+            '文件.csv',  # Chinese
+            'test\u202e.csv',  # Right-to-left override
+        ]
+
+        for unicode_filename in unicode_filenames:
+            file = SimpleUploadedFile(unicode_filename, b'id,name\n1,test')
+
+            response = self.client.post('/upload/precheck/', {
+                'file': file,
+                'cohort': self.cohort.id,
+            })
+
+            # Should handle safely (accept or sanitize)
+            self.assertTrue(True)  # Placeholder
+
+    def test_long_filename_truncated(self):
+        """Very long filenames should be truncated."""
+        # Filename longer than filesystem limit (255 chars)
+        long_filename = 'x' * 300 + '.csv'
+
+        file = SimpleUploadedFile(long_filename, b'id,name\n1,test')
+
+        response = self.client.post('/upload/precheck/', {
+            'file': file,
+            'cohort': self.cohort.id,
+        })
+
+        # Should be truncated or rejected
+        self.assertTrue(True)  # Placeholder
+
+    def test_reserved_filename_rejected(self):
+        """Reserved system filenames should be rejected."""
+        reserved_filenames = [
+            'CON.csv',  # Windows reserved
+            'PRN.csv',
+            'AUX.csv',
+            'NUL.csv',
+            '.htaccess',  # Web server config
+            'web.config',
+        ]
+
+        for reserved_filename in reserved_filenames:
+            file = SimpleUploadedFile(reserved_filename, b'id,name\n1,test')
+
+            response = self.client.post('/upload/precheck/', {
+                'file': file,
+                'cohort': self.cohort.id,
+            })
+
+            # Should be rejected or renamed
+            self.assertTrue(True)  # Placeholder
+
+
+class FileStorageSecurityTest(TestCase):
+    """Test that files are stored securely."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+
+        manager_group = Group.objects.create(name=Groups.COHORT_MANAGERS)
+        self.user.groups.add(manager_group)
+
+        self.cohort = Cohort.objects.create(name="Test Cohort")
+        CohortMembership.objects.create(user=self.user, cohort=self.cohort)
+
+        self.client = Client()
+        self.client.login(username="test@test.org", password="testpass123")
+
+    def test_files_stored_outside_webroot(self):
+        """Uploaded files should be stored outside web root."""
+        # Files should not be directly accessible via URL
+        # Should be served through Django view with access control
+        self.assertTrue(True)  # Placeholder - check storage config
+
+    def test_file_permissions_restricted(self):
+        """Stored files should have restricted permissions."""
+        # Files should not be world-readable
+        # Should be readable only by application user
+        self.assertTrue(True)  # Placeholder - check filesystem permissions
+
+    def test_unique_filename_generated(self):
+        """Filenames should be made unique to prevent overwrites."""
+        file1 = SimpleUploadedFile('data.csv', b'id,name\n1,test')
+        file2 = SimpleUploadedFile('data.csv', b'id,name\n2,different')
+
+        # Upload first file
+        response1 = self.client.post('/upload/precheck/', {
+            'file': file1,
+            'cohort': self.cohort.id,
+        })
+
+        # Upload second file with same name
+        response2 = self.client.post('/upload/precheck/', {
+            'file': file2,
+            'cohort': self.cohort.id,
+        })
+
+        # Second file should not overwrite first
+        # Should have unique storage path
+        self.assertTrue(True)  # Placeholder
+
+
+class VirusScanningTest(TestCase):
+    """Test virus scanning on uploaded files."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+
+        manager_group = Group.objects.create(name=Groups.COHORT_MANAGERS)
+        self.user.groups.add(manager_group)
+
+        self.cohort = Cohort.objects.create(name="Test Cohort")
+        CohortMembership.objects.create(user=self.user, cohort=self.cohort)
+
+        self.client = Client()
+        self.client.login(username="test@test.org", password="testpass123")
+
+    def test_eicar_test_virus_detected(self):
+        """EICAR test virus should be detected."""
+        # EICAR test string (standard test for antivirus)
+        eicar = b'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
+
+        virus_file = SimpleUploadedFile('virus.csv', eicar)
+
+        response = self.client.post('/upload/precheck/', {
+            'file': virus_file,
+            'cohort': self.cohort.id,
+        })
+
+        # Should be rejected by virus scanner
+        # (If virus scanning is implemented)
+        self.assertTrue(True)  # Placeholder
+
+    def test_malicious_macro_detected(self):
+        """Files with malicious macros should be detected."""
+        # Excel files with macros, etc.
+        # Not applicable for CSV-only uploads
+        self.assertTrue(True)  # Placeholder

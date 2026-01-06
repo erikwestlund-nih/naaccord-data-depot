@@ -1,0 +1,12 @@
+user_email,cohort_id,cohort_name
+admin@va.gov,18,VACS / VACS8
+admin@jh.edu,5,JHHCC
+user@ucsd.edu,13,UCSD
+user@case.edu,1,CWRU
+user@uab.edu,12,UA - Birmingham
+admin@test.edu,18,VACS / VACS8
+admin@test.edu,5,JHHCC
+admin@test.edu,13,UCSD
+researcher@test.edu,5,JHHCC
+coordinator@test.edu,18,VACS / VACS8
+viewer@test.edu,5,JHHCC

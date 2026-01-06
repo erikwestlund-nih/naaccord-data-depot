@@ -1,0 +1,33 @@
+name,type,status
+CWRU,clinical,active
+"Emory - Grady, Atlanta GA",clinical,active
+Fenway,clinical,active
+HOPS,clinical,active
+JHHCC,clinical,active
+"Kaiser Permanente, North California",clinical,active
+"Kaiser Permanente, Mid-Atlantic States",clinical,active
+"Maple Leaf Medical Clinic, Ontario Canada",clinical,active
+Montreal,clinical,active
+RRC(Puerto Rico),clinical,active
+SAC,clinical,active
+UA - Birmingham,clinical,active
+UCSD,clinical,active
+UNC - Chapel Hill,clinical,active
+UW - Seattle,clinical,active
+"UT Southwestern / Parkland, Dallas TX",clinical,active
+VACS / VACS8,clinical,active
+Vanderbilt,clinical,active
+ALIVE,interval,active
+MACS/WIHS Combined Cohort Study (MWCCS),interval,active
+Observational Study of the Consequences of the Protease Inhibitor Era (SCOPE),interval,active
+Longitudinal Study of Ocular Complications of AIDS – ,interval,inactive
+SUN,clinical,inactive
+Second Multicenter Hemophilia Cohort Study,interval,inactive
+Women’s Interagency HIV Study (WIHS),interval,inactive
+ALLRT/AACTG – ,interval,inactive
+Multicenter AIDS Cohort Study (MACS) ,interval,inactive
+OHTN,clinical,inactive
+HIVRN,clinical,inactive
+HOMER,clinical,withdrawn
+Einstein/Montefiore,clinical,active
+ERC-CFAR,clinical,active

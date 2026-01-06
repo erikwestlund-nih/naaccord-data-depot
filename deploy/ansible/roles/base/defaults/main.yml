@@ -1,0 +1,53 @@
+---
+# Default variables for base role
+
+# User management
+base_create_naaccord_user: true
+base_naaccord_uid: 1500
+base_naaccord_gid: 1500
+
+# System configuration
+base_timezone: "America/New_York"
+base_disable_selinux: true
+
+# Docker configuration
+base_docker_log_max_size: "10m"
+base_docker_log_max_file: "3"
+base_docker_storage_driver: "overlay2"
+
+# Directory paths
+base_app_root: "/opt/naaccord"
+base_log_dir: "/var/log/naaccord"
+base_config_dir: "/etc/naaccord"
+
+# Package lists (can be extended in playbooks)
+base_essential_packages:
+  - git
+  - curl
+  - wget
+  - vim
+  - nano
+
+base_monitoring_packages:
+  - htop
+  - ncdu
+  - tree
+  - iotop
+  - sysstat
+
+base_python_packages:
+  - python3
+  - python3-pip
+  - python3-devel
+
+base_networking_packages:
+  - cifs-utils
+  - nfs-utils
+  - rsync
+
+# Oh-my-zsh configuration
+base_ohmyzsh_theme: "agnoster"
+base_ohmyzsh_plugins:
+  - git
+  - docker
+  - ansible

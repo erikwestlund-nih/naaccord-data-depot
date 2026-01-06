@@ -1,0 +1,23 @@
+{% if total_values > 0 %}
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead>
+        <tr>
+            <th scope="col" class="whitespace-nowrap py-1 pl-4 pr-3 text-left text-xs font-medium text-gray-900 sm:pl-0">Value</th>
+            <th scope="col" class="whitespace-nowrap py-1 px-2 text-left text-xs font-medium text-gray-900">Count</th>
+        </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 bg-white">
+        {% for value, count in values.items %}
+            <tr>
+                <td class="whitespace-nowrap py-1 pl-4 pr-3 text-xs text-gray-500 font-mono sm:pl-0">{{ value }}</td>
+                <td class="whitespace-nowrap px-2 py-1 text-xs font-medium text-gray-900">{{ count }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+{% endif %}
+
+{% if total_values == 10 %}
+<div class="text-xs text-gray-500 mt-3">Only the 10 most common values shown.</div>
+{% endif %}

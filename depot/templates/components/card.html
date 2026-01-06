@@ -1,0 +1,37 @@
+<c-vars title="" subtitle="" class="" header="" footer="" variant="default" no_border="false" compact="false" badge="" />
+
+<div class="{% if compact == 'true' %}overflow-hidden rounded-lg sm:rounded-lg bg-white{% else %}divide-y divide-gray-200 overflow-hidden rounded-lg sm:rounded-lg bg-white{% endif %} {% if no_border == 'true' %}shadow-md{% else %}shadow-sm border border-gray-300{% endif %} {{ class }}">
+    {% if title or header %}
+    <div class="{% if compact == 'true' %}px-4 pt-5 pb-2 sm:px-6{% else %}px-4 py-5 sm:px-6{% endif %}">
+        {% if title %}
+            {% if badge %}
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-base font-semibold text-gray-900">{{ title }}</h3>
+                        {% if subtitle %}
+                            <p class="mt-1 text-sm text-gray-500">{{ subtitle }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="flex-shrink-0">
+                        {{ badge|safe }}
+                    </div>
+                </div>
+            {% else %}
+                <h3 class="text-base font-semibold text-gray-900">{{ title }}</h3>
+                {% if subtitle %}
+                    <p class="mt-1 text-sm text-gray-500">{{ subtitle }}</p>
+                {% endif %}
+            {% endif %}
+        {% endif %}
+        {{ header }}
+    </div>
+    {% endif %}
+    <div class="{% if variant == 'table' %}{% elif variant == 'no-padding' %}{% elif compact == 'true' %}px-4 pb-5 sm:px-6{% else %}px-4 py-5 sm:px-6{% endif %}">
+        {{ slot }}
+    </div>
+    {% if footer %}
+    <div class="px-4 py-4 sm:px-6">
+        {{ footer }}
+    </div>
+    {% endif %}
+</div>

@@ -1,0 +1,108 @@
+# Env
+.env
+.r_dev_mode
+
+# Build artifacts
+*.log
+services-build-*.log
+nginx-build-*.log
+cleanup_log.txt
+
+# Ansible secrets (NEVER commit)
+ansible/vault-password.txt
+
+# Storage directories
+/storage/
+/resources/storage/*
+!/resources/storage/.gitkeep
+!resources/storage/uploads/.gitkeep
+
+/resources/nas/*
+!/resources/nas/.gitkeep
+
+# Testing
+resources/data/generated/*
+resources/data/test/
+# Test scripts in root (should be in test/ directory)
+/test_*.py
+/test_*.sh
+/run_*test*.py
+/run_*test*.sh
+# Test data files that shouldn't be in repo
+test_patient.csv
+user_data.json
+data_backup.json
+
+# Source code not to save
+pygraphviz
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+
+# Dev database
+db.sqlite3
+
+# Django specific files
+*.log
+media/
+
+# Node.js
+node_modules/
+
+# Editor specific
+.idea/
+.vscode/
+.claude/
+
+# OS specific
+.DS_Store
+
+depot/notebooks/*.html
+depot/notebooks/*.html.md
+depot/notebooks/**/*_files/
+
+/.quarto/
+static.tar.gz
+
+**/*.quarto_ipynb
+
+# SAML test certificates (never commit production certs)
+# saml_certs_test/ is intentionally committed for development convenience
+# Production certs should be handled through secure deployment pipelines
+
+# SAML attribute mappings are shared between dev and production
+# saml_attribute_mappings/ is committed as it contains configuration, not secrets
+staticfiles/
+deploy/saml_certs/
+
+# ⚠️ IMPORTANT: Deployment Keys and Certificates
+# Block entire deploy/keys/ directory by default (protects production secrets)
+deploy/keys/
+
+# ✅ EXCEPTION: Explicitly allow TEST/DEV certificates (safe to commit)
+# These are self-signed test certificates for local/staging development ONLY
+!deploy/keys/README.md
+!deploy/keys/containers/
+!deploy/keys/containers/mock-idp/
+!deploy/keys/containers/mock-idp/cert/
+!deploy/keys/containers/mock-idp/cert/*.crt
+!deploy/keys/containers/mock-idp/cert/*.key
+!deploy/keys/configs/
+!deploy/keys/configs/wireguard/
+!deploy/keys/configs/wireguard/dev/
+!deploy/keys/configs/wireguard/dev/*
+
+# 🔒 NEVER COMMIT: Production keys remain blocked by deploy/keys/ rule above
+# - deploy/keys/saml_certs/sp-prod.key (PRODUCTION - gitignored)
+# - deploy/keys/saml_certs/sp-prod.crt (PRODUCTION - gitignored)
+
+# Auto-generated VS Code tasks (managed by ~/code/projects/tools/gen_tasks.sh)
+.vscode/tasks.json
+
+# Local Docker persistent data (default path)
+storage/docker/

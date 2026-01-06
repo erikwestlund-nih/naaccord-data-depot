@@ -1,0 +1,14 @@
+# Docker container log rotation
+# Managed by Ansible - do not edit manually
+# Note: Individual container logs are managed by Docker logging driver
+# This handles any remaining log files
+
+/var/lib/docker/containers/*/*.log {
+    weekly
+    rotate {{ docker_log_rotation_count }}
+    compress
+    missingok
+    notifempty
+    copytruncate
+    maxage 30
+}

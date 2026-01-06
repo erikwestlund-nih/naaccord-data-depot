@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% load static %}
+
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>{{ title }}</title>
+
+    {% if debug and vite_running %}
+        <script type="module" src="{{ vite_base_url }}/@vite/client"></script>
+        <script type="module">
+            import '{{ vite_base_url }}/resources/js/app.js';
+            import '{{ vite_base_url }}/resources/css/app.css';
+        </script>
+    {% else %}
+        {% for css_file in app_css_files %}
+        <link
+            rel="stylesheet"
+            href="{% static '' %}{{ css_file }}"
+        >
+        {% endfor %}
+        <script
+            type="module"
+            src="{% static '' %}{{ app_js }}"
+        ></script>
+    {% endif %}
+</head>
+
+<body>
+<header>
+    <nav class="bg-gray-800">
+        <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+            <div class="flex h-16 items-center justify-between">
+                <div class="flex flex-grow items-center">
+                    <a
+                        href="{% url 'index' %}"
+                        class="flex flex-shrink-0 items-center gap-x-2 text-xl font-bold"
+                    >
+                        {% component "icon" icon="ribbon" family="solid" c="h-6 w-6 text-red-600" / %}
+
+                        <span class="text-red-50">NA ACCORD</span>
+                    </a>
+                    {% if user.is_authenticated %}
+                        <div class="hidden items-center justify-start sm:ml-24 sm:flex">
+                            <div class="flex space-x-4">
+                                <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
+                                {% if user.can_manage_submissions %}
+                                    <a
+                                        href="{% url 'cohorts' %}"
+                                        class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                                    >Cohorts</a>
+                                    <a
+                                        href="{% url 'submission.waves' %}"
+                                        class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                                    >Waves</a>
+                                {% endif %}
+                                <a
+                                    href="{% url 'precheck_validation' %}"
+                                    class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                                >Precheck Validation</a>
+                                <a
+                                    href="{% url 'submissions.upload' %}"
+                                    class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                                >Upload</a>
+                                <a
+                                    href="{% url 'submissions' %}"
+                                    class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                                >Submissions</a>
+                                {% if user.can_manage_submissions %}
+                                <a
+                                    href="{% url 'dashboard' %}"
+                                    class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                                >Dashboard</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="hidden sm:ml-6 sm:block">
+                    <div class="flex items-center">
+                        <!-- Profile dropdown -->
+                        <div
+                            class="relative ml-3"
+                            x-data="{
+                                open: false,
+                                toggle() {
+                                    if (this.open) {
+                                        return this.close()
+                                    }
+
+                                    this.$refs.button.focus()
+
+                                    this.open = true
+                                },
+                                close() {
+                                    if (! this.open) return
+
+                                    this.open = false
+                                }
+                            }"
+                            x-on:keydown.escape.prevent.stop="close($refs.button)"
+                            x-on:focusin.window="$refs.panel && ! $refs.panel.contains($event.target) && close()"
+                            x-id="['account-dropdown-button']"
+
+                        >
+                            <div>
+                                {% if user.is_authenticated %}
+                                    <button
+                                        type="button"
+                                        class="relative flex rounded-lg bg-gray-700 p-2 text-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
+                                        id="account-menu-button"
+                                        aria-expanded="false"
+                                        aria-haspopup="true"
+                                        x-ref="button"
+                                        x-on:click="toggle()"
+                                        :aria-expanded="open"
+                                        :aria-controls="$id('account-dropdown-button')"
+                                    >
+                                        <span class="absolute -inset-1.5"></span>
+                                        <span class="sr-only">Open account menu</span>
+                                        {% component "icon" icon="user-gear" family="solid" c="h-5 w-5 text-blue-50" / %}
+                                    </button>
+                                {% elif url_name != "auth.sign_in" %}
+                                    <a
+                                        href="{% url 'auth.sign_in' %}"
+                                        class="rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-red-50 hover:bg-red-600 hover:text-white"
+                                    >
+                                        Sign In
+                                    </a>
+                                {% endif %}
+                            </div>
+
+                            {% if user.is_authenticated %}
+                                <div
+                                    class="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 p-1.5 focus:outline-none"
+                                    role="menu"
+                                    aria-orientation="vertical"
+                                    aria-labelledby="account-menu-button"
+                                    tabindex="-1"
+                                    x-ref="panel"
+                                    x-show="open"
+                                    x-transition.origin.top.left
+                                    x-on:click.outside="$refs.button && close($refs.button); $refs.button.blur()"
+                                    :id="$id('account-dropdown-button')"
+                                    style="display: none;"
+                                >
+                                    <a
+                                        href="{% url 'account' %}"
+                                        class="block rounded-md px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100"
+                                        role="menuitem"
+                                        tabindex="-1"
+                                        id="user-menu-item-0"
+                                    >My Account</a>
+                                    <button
+                                        hx-post="{% url 'auth.sign_out' %}"
+                                        class="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-gray-900 hover:bg-gray-100"
+                                        role="menuitem"
+                                        tabindex="-1"
+                                        hx-boost="false"
+                                        hx-swap="none"
+                                        hx-trigger="click"
+                                        id="user-menu-item-1"
+                                    >Sign out
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                {% if user.is_authenticated and url_name != "auth.sign_in" %}
+                    <div class="-mr-2 flex sm:hidden">
+                        <!-- Mobile menu button -->
+                        <button
+                            type="button"
+                            class="relative inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                            aria-controls="mobile-menu"
+                            aria-expanded="false"
+                            x-data="{ open: false }"
+                            x-on:click="open = true; $dispatch('toggle-mobile-menu');"
+                            x-on:mobile-menu-closed.window="open = false"
+                            :aria-expanded="open"
+                            :aria-controls="$id('account-dropdown-button')"
+                        >
+                            <span class="absolute -inset-0.5"></span>
+                            <span class="sr-only">Open main menu</span>
+
+                            <span x-show="! open">
+                            {% component "icon" icon="bars" family="regular" c="h-5 w-5" / %}
+                        </span>
+
+                            <span x-show="open">
+                            {% component "icon" icon="x" family="regular" c="h-5 w-5" / %}
+                        </span>
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Mobile menu, show/hide based on menu state. -->
+        <div
+            class="sm:hidden"
+            id="mobile-menu"
+            x-on:toggle-mobile-menu.window="toggle()"
+            x-data="{
+                open: false,
+                toggle() {
+                    if (this.open) {
+                        $dispatch('mobile-menu-closed')
+                        return this.close()
+                    }
+
+                    this.open = true
+                },
+                close() {
+                    if (! this.open) return
+
+                    this.open = false
+                }
+            }"
+            x-on:keydown.escape.prevent.stop="close($refs.button)"
+            x-on:focusin.window="! $refs.panel.contains($event.target) && close()"
+
+            x-id="['mobile-account-dropdown-button']"
+            x-ref="panel"
+            x-show="open"
+            x-on:click.outside="$dispatch('mobile-menu-closed'); open = false"
+            :id="$id('mobile-account-dropdown-button')"
+            style="display: none;"
+        >
+            {% if user.is_authenticated %}
+                <div class="px-2 pt-2 pb-3 space-y-1">
+                    <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
+                    {% if user.can_manage_submissions %}
+                    <a
+                        href="{% url 'cohorts' %}"
+                        class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                    >Cohorts</a>
+                    <a
+                        href="{% url 'submission.waves' %}"
+                        class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                    >Waves</a>
+                    {% endif %}
+                    <a
+                        href="{% url 'submissions' %}"
+                        class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                    >Submissions</a>
+                    <a
+                        href="{% url 'precheck_validation' %}"
+                        class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                    >Audit Data</a>
+                    <a
+                        href="{% url 'submissions.upload' %}"
+                        class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                    >Upload</a>
+                    {% if user.can_manage_submissions %}
+                    <a
+                        href="{% url 'dashboard' %}"
+                        class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                    >Dashboard</a>
+                    {% endif %}
+                </div>
+                <div class="border-t border-gray-700 pt-4 pb-3">
+                    <div class="flex items-center px-5">
+                        <div class="flex-shrink-0">
+                            {% component "icon" icon="user-gear" family="solid" c="h-5 w-5 text-blue-50" / %}
+                        </div>
+                    </div>
+                    <div class="mt-3 px-2 space-y-1">
+                        <a
+                            href="{% url 'auth.sign_out' %}"
+                            class="block rounded-md px-3 py-2 text-base font-medium text-gray-400 hover:bg-gray-700 hover:text-white"
+                        >My Account</a>
+                        <button
+                            hx-post="{% url 'auth.sign_out' %}"
+                            hx-swap="none"
+                            hx-trigger="click"
+                            class="block w-full rounded-md px-3 py-2 text-left text-base font-medium text-gray-400 hover:bg-gray-700 hover:text-white"
+                        >Sign out
+                        </button>
+                    </div>
+                </div>
+            {% elif url_name != "sign_in" %}
+                <div class="px-2 pt-2 pb-3 space-y-1">
+                <a
+                    href="{% url 'auth.sign_in' %}"
+                    class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                >Sign In</a>
+            {% endif %}
+            </div>
+    </nav>
+
+</header>
+<main class="mx-auto mt-12 w-full max-w-6xl px-4">
+    {% slot "body" default %}
+
+    {% endslot %}
+</main>
+
+<div class="mx-auto w-full max-w-6xl py-8">
+    {% component "separator" / %}
+</div>
+<footer class="mx-auto flex w-full max-w-3xl px-4 text-xs sm:justify-center">
+    <ul class="flex flex-col gap-4 list-unstyled sm:flex-row sm:gap-12">
+        <a
+            href="https://publichealth.jhu.edu/johns-hopkins-biostatistics-center"
+            class="font-semibold text-gray-700 hover:underline"
+        >Application Developed by Johns Hopkins Biostatistics Center</a>
+        <a
+            href="#"
+            class="font-semibold"
+        >Support</a>
+    </ul>
+</footer>
+
+<script>
+    {% if debug %}
+        if (typeof window.htmx !== "undefined") {
+            htmx.on("htmx:afterSettle", function (detail) {
+                if (
+                    typeof window.djdt !== "undefined"
+                    && detail.target instanceof HTMLBodyElement
+                ) {
+                    djdt.show_toolbar();
+                }
+            });
+        }
+    {% endif %}
+</script>
+</body>
+</html>

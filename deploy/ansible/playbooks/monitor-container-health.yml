@@ -1,0 +1,212 @@
+---
+# Container Health Monitoring Playbook
+#
+# Checks container health status and restart counts
+# Can be run manually or via cron for automated monitoring
+#
+# Usage:
+#   # Check all containers
+#   ansible-playbook -i inventories/production/hosts.yml playbooks/monitor-container-health.yml --connection local
+#
+#   # Check specific profile (web or services)
+#   ansible-playbook -i inventories/production/hosts.yml playbooks/monitor-container-health.yml --connection local -e check_profile=web
+
+- name: Monitor container health and restart counts
+  hosts: all
+  become: yes
+  vars:
+    naaccord_repo_path: /opt/naaccord/depot
+    docker_compose_file: docker-compose.prod.yml
+    restart_threshold: 3  # Alert if container has restarted more than this many times
+    check_profile: "{{ profile | default('all') }}"  # 'web', 'services', or 'all'
+
+  tasks:
+    - name: Get container status for all running containers
+      ansible.builtin.shell: |
+        docker ps --format '{{`{{.Names}}`}}|{{`{{.Status}}`}}|{{`{{.State}}`}}' | grep naaccord
+      register: container_status
+      changed_when: false
+      failed_when: false
+
+    - name: Get container restart counts
+      ansible.builtin.shell: |
+        docker inspect --format='{{`{{.Name}}`}}|{{`{{.RestartCount}}`}}' $(docker ps -q --filter "name=naaccord") 2>/dev/null || echo "No containers found"
+      register: restart_counts
+      changed_when: false
+      failed_when: false
+
+    - name: Get health status for containers with healthchecks
+      ansible.builtin.shell: |
+        docker inspect --format='{{`{{.Name}}`}}|{{`{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}`}}' $(docker ps -q --filter "name=naaccord") 2>/dev/null || echo "No containers found"
+      register: health_status
+      changed_when: false
+      failed_when: false
+
+    - name: Get recent container logs for error analysis
+      ansible.builtin.shell: |
+        docker logs --tail 50 {{ item }} 2>&1 | grep -i "error\|exception\|fatal\|crash" || echo "No recent errors"
+      loop:
+        - naaccord-web
+        - naaccord-services
+        - naaccord-celery
+        - naaccord-nginx
+      register: error_logs
+      changed_when: false
+      failed_when: false
+      when: "'naaccord-' + item.split('-')[1] in container_status.stdout"
+
+    - name: Parse restart counts and identify problematic containers
+      ansible.builtin.set_fact:
+        high_restart_containers: "{{ restart_counts.stdout_lines |
+          map('regex_replace', '^/(.+)\\|([0-9]+)$', '\\1:\\2') |
+          map('split', ':') |
+          selectattr('1', 'match', '^[0-9]+$') |
+          selectattr('1', '>', restart_threshold | string) |
+          list }}"
+      when: restart_counts.rc == 0
+
+    - name: Display container status summary
+      ansible.builtin.debug:
+        msg: |
+          ════════════════════════════════════════════════════════════════
+          Container Health Monitoring Report
+          ════════════════════════════════════════════════════════════════
+
+          Environment: {{ naaccord_environment }}
+          Server: {{ inventory_hostname }}
+          Check Time: {{ ansible_date_time.iso8601 }}
+
+          ┌─ RUNNING CONTAINERS ─────────────────────────────────────────┐
+          {% for line in container_status.stdout_lines %}
+          {{ line }}
+          {% endfor %}
+          └──────────────────────────────────────────────────────────────┘
+
+          ┌─ RESTART COUNTS ──────────────────────────────────────────────┐
+          {% for line in restart_counts.stdout_lines %}
+          {{ line }}
+          {% endfor %}
+          └──────────────────────────────────────────────────────────────┘
+
+          ┌─ HEALTH STATUS ───────────────────────────────────────────────┐
+          {% for line in health_status.stdout_lines %}
+          {{ line }}
+          {% endfor %}
+          └──────────────────────────────────────────────────────────────┘
+
+          {% if high_restart_containers is defined and high_restart_containers | length > 0 %}
+          ⚠️  WARNING: Containers with high restart counts detected!
+          {% for container in high_restart_containers %}
+          - {{ container[0] }}: {{ container[1] }} restarts (threshold: {{ restart_threshold }})
+          {% endfor %}
+          {% endif %}
+
+    - name: Check for unhealthy containers
+      ansible.builtin.set_fact:
+        unhealthy_containers: "{{ health_status.stdout_lines |
+          select('search', 'unhealthy') |
+          list }}"
+      when: health_status.rc == 0
+
+    - name: Alert on unhealthy containers
+      ansible.builtin.debug:
+        msg: |
+          ⚠️  CRITICAL: Unhealthy containers detected!
+
+          {% for container in unhealthy_containers %}
+          - {{ container }}
+          {% endfor %}
+
+          Action required:
+          1. Check container logs: docker logs <container-name>
+          2. Inspect health check: docker inspect <container-name> --format='{{`{{json .State.Health}}`}}'
+          3. Restart if needed: docker restart <container-name>
+      when: unhealthy_containers is defined and unhealthy_containers | length > 0
+
+    - name: Display recent errors from logs
+      ansible.builtin.debug:
+        msg: |
+          ┌─ RECENT ERRORS: {{ item.item }} ────────────────────────────
+          {{ item.stdout }}
+          └──────────────────────────────────────────────────────────────┘
+      loop: "{{ error_logs.results }}"
+      when:
+        - error_logs is defined
+        - item.stdout is defined
+        - "'No recent errors' not in item.stdout"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Save monitoring report to file
+      ansible.builtin.copy:
+        content: |
+          Container Health Monitoring Report
+          Generated: {{ ansible_date_time.iso8601 }}
+          Environment: {{ naaccord_environment }}
+          Server: {{ inventory_hostname }}
+
+          === CONTAINER STATUS ===
+          {% for line in container_status.stdout_lines %}
+          {{ line }}
+          {% endfor %}
+
+          === RESTART COUNTS ===
+          {% for line in restart_counts.stdout_lines %}
+          {{ line }}
+          {% endfor %}
+
+          === HEALTH STATUS ===
+          {% for line in health_status.stdout_lines %}
+          {{ line }}
+          {% endfor %}
+
+          {% if high_restart_containers is defined and high_restart_containers | length > 0 %}
+          === HIGH RESTART COUNT WARNINGS ===
+          {% for container in high_restart_containers %}
+          {{ container[0] }}: {{ container[1] }} restarts
+          {% endfor %}
+          {% endif %}
+
+          {% if unhealthy_containers is defined and unhealthy_containers | length > 0 %}
+          === UNHEALTHY CONTAINERS ===
+          {% for container in unhealthy_containers %}
+          {{ container }}
+          {% endfor %}
+          {% endif %}
+        dest: "/var/log/naaccord/container-health-{{ ansible_date_time.date }}.log"
+        mode: '0644'
+      when: container_status.rc == 0
+
+    - name: Recommend actions based on findings
+      ansible.builtin.debug:
+        msg: |
+          ════════════════════════════════════════════════════════════════
+          Recommended Actions
+          ════════════════════════════════════════════════════════════════
+
+          {% if unhealthy_containers is defined and unhealthy_containers | length > 0 %}
+          🔴 IMMEDIATE ACTION REQUIRED:
+          - Unhealthy containers detected
+          - Run: docker logs <container-name> to investigate
+          - Consider restarting: docker restart <container-name>
+          {% endif %}
+
+          {% if high_restart_containers is defined and high_restart_containers | length > 0 %}
+          🟡 INVESTIGATION RECOMMENDED:
+          - Containers with high restart counts detected
+          - Review logs for crash patterns
+          - Check resource limits (CPU/memory)
+          - Verify network connectivity (especially for web container)
+          {% endif %}
+
+          {% if (unhealthy_containers is not defined or unhealthy_containers | length == 0) and (high_restart_containers is not defined or high_restart_containers | length == 0) %}
+          ✅ ALL CONTAINERS HEALTHY
+          - No immediate issues detected
+          - Continue regular monitoring
+          {% endif %}
+
+          Next Steps:
+          1. Review full logs: docker logs <container-name>
+          2. Check resource usage: docker stats
+          3. For web container issues, verify WireGuard tunnel: docker exec wireguard-web wg show
+          4. Set up automated monitoring via cron (see playbook comments)

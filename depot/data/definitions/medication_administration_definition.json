@@ -1,0 +1,38 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "medicationName",
+    "type": "string",
+    "description": "Generic medication name for long-acting injectable antiretroviral therapy (LAI ART). Currently includes Cabenuva (cabotegravir/rilpivirine), Cabotegravir injectable, Rilpivirine injectable, and Lenacapavir injectable (Sunlenca).",
+    "example": "cabotegravir, CABENUVA, LENACAPAVIR INJECT"
+  },
+  {
+    "name": "administrationDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Medication administration/injection date. Apply date rules in Section 2.5 for fuzzy or unknown dates."
+  },
+  {
+    "name": "source",
+    "type": "string",
+    "description": "Data source for LAI ART administration. Common sources: 'Pharmacy dispensing record', 'Medication administration record', 'Chart review', 'Procedure code'. If none apply, use a concise, descriptive, consistently formatted text string label.",
+    "example": "Pharmacy dispensing record, Medication administration record, Chart review"
+  },
+  {
+    "name": "strength",
+    "type": "string",
+    "description": "Medication strength/dosage amount.",
+    "example": "200, 450, 600, 900, 927"
+  },
+  {
+    "name": "units",
+    "type": "string",
+    "description": "Units of medication strength.",
+    "example": "mg, ml"
+  }
+]

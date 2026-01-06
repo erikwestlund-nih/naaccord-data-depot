@@ -1,0 +1,26 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "encounterID",
+    "type": "string",
+    "description": "Unique sequence number that links diagnoses associated with this hospitalization. May be used to link discharge diagnoses that appear in your EHR.",
+    "example": "1234567890"
+  },
+  {
+    "name": "admitDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date patient was admitted to the hospital. Only data with day-precision should be submitted."
+  },
+  {
+    "name": "dischargeDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date patient was discharged from hospital. Only data with day-precision should be submitted."
+  }
+]

@@ -1,0 +1,17 @@
+# Nginx log rotation for NA-ACCORD
+# Managed by Ansible - do not edit manually
+
+{{ nginx_log_dir }}/*.log {
+    daily
+    rotate {{ nginx_log_rotation_count }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 nginx nginx
+    sharedscripts
+    postrotate
+        # Reload Nginx to reopen log files
+        docker exec naaccord-nginx nginx -s reload > /dev/null 2>&1 || true
+    endscript
+}

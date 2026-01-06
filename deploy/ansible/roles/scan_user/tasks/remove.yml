@@ -1,0 +1,43 @@
+---
+# Remove scan support user and optionally the Scan Support cohort
+
+- name: Remove scan support user
+  become: true
+  become_user: naaccord
+  ansible.builtin.command:
+    cmd: >
+      docker exec naaccord-services
+      python manage.py remove_scan_user
+      --jhed {{ scan_user_jhed }}
+      {{ '--remove-cohort' if scan_user_remove_cohort else '' }}
+      {{ '--skip-confirmation' if scan_user_skip_confirmation else '' }}
+  register: remove_result
+  changed_when: "'✓ SCAN USER REMOVED' in remove_result.stdout"
+  failed_when: remove_result.rc != 0
+  tags:
+    - scan_user
+    - scan_user_remove
+
+- name: Display removal output
+  ansible.builtin.debug:
+    msg: "{{ remove_result.stdout_lines }}"
+  tags:
+    - scan_user
+    - scan_user_remove
+
+- name: Save removal timestamp
+  ansible.builtin.set_fact:
+    scan_user_removed_at: "{{ ansible_date_time.iso8601 }}"
+  tags:
+    - scan_user
+    - scan_user_remove
+
+- name: Confirm removal
+  ansible.builtin.debug:
+    msg:
+      - "✅ Scan user has been permanently removed"
+      - "✅ All cohort memberships deleted"
+      - "{{ '✅ Scan Support cohort removed' if scan_user_remove_cohort else 'ℹ️  Scan Support cohort retained' }}"
+  tags:
+    - scan_user
+    - scan_user_remove

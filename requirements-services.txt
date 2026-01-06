@@ -1,0 +1,57 @@
+# Services container requirements (includes Celery and data processing)
+# Clean Python-only build - R/Quarto dependencies removed
+-r requirements-base.txt
+
+# Celery and task management
+celery==5.5.1
+django-celery-beat==2.6.0
+django_celery_results==2.6.0
+amqp==5.3.1
+kombu==5.5.2
+vine==5.1.0
+billiard==4.2.1
+click-didyoumean==0.3.1
+click-plugins==1.1.1
+click-repl==0.3.0
+watchdog==6.0.0  # File watching for Celery dev mode auto-reload
+
+# Data processing and analytics
+pandas==2.2.3
+numpy<2.0  # Pin to NumPy 1.x for pandas/pyarrow compatibility
+duckdb==0.10.0
+arrow==1.3.0
+pyarrow==14.0.1
+
+# File formats
+PyYAML==6.0.2
+jsonschema==4.23.0
+jsonschema-specifications==2024.10.1
+defusedxml==0.7.1
+markdown-it-py==3.0.0  # Required by template filters
+mdurl==0.1.2  # Required by markdown-it-py
+bleach==6.2.0  # Required by template filters for HTML sanitization
+beautifulsoup4==4.12.3  # Required by icon component
+soupsieve==2.6  # Required by beautifulsoup4
+webencodings==0.5.1  # Required by bleach
+tinycss2==1.4.0  # Required by bleach
+MarkupSafe==3.0.2  # Required by bleach
+
+# Development tools
+Faker==30.3.0
+black==24.8.0
+pathspec==0.12.1
+mypy-extensions==1.0.0
+platformdirs==4.3.6
+
+# System utilities
+psutil==7.0.0
+humanize==4.12.2
+typing_extensions==4.12.2
+tzdata==2025.2
+
+# Additional monitoring
+prometheus_client==0.21.1
+
+# Django packages needed by services
+django_sonar==0.1.8
+django-jsoneditor==0.2.4

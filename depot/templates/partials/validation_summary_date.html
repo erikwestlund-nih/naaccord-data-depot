@@ -1,0 +1,135 @@
+{# Date Type Summary - Coverage and timeline #}
+
+<div class="px-6 pt-3 pb-6 space-y-8 divide-y divide-gray-200 max-w-full overflow-hidden">
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Summary metrics" caption="Overall coverage and validity." />
+        <c-stat-table class="mt-2" key_heading="Metric" value_heading="Value">
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Total rows</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.total_rows|floatformat:0 }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Valid dates</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.summary.valid_count|default:0 }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Invalid dates</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.summary.invalid_count|default:0 }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Null values</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.null_count|floatformat:0 }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Empty strings</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.empty_count|floatformat:0 }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Earliest date</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.summary.min_date|default:"—" }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Latest date</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.summary.max_date|default:"—" }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Range (days)</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.summary.range_days|default:"—" }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Year span</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.summary.span_years|default:"—" }}</td>
+            </tr>
+        </c-stat-table>
+    </div>
+
+    {% if variable.summary.chart_data %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Monthly distribution" caption="Valid records per calendar month." />
+        <div class="bg-white rounded-lg border border-gray-200 p-4 max-w-full overflow-hidden">
+            <div id="chart-date-{{ variable.id }}" class="w-full" style="height:550px;"></div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        if (typeof Plotly === 'undefined') {
+            console.error('Plotly not loaded');
+            return;
+        }
+
+        var labels = {{ variable.summary.chart_data.labels_json|safe }};
+        var values = {{ variable.summary.chart_data.values_json|safe }};
+
+        var data = [{
+            x: labels,
+            y: values,
+            type: 'bar',
+            marker: { color: '#2563EB' }
+        }];
+
+        // Calculate intelligent tick spacing based on data range
+        var totalMonths = labels.length;
+        var tickInterval = totalMonths > 100 ? Math.ceil(totalMonths / 12) :
+                          totalMonths > 50 ? Math.ceil(totalMonths / 15) :
+                          Math.ceil(totalMonths / 20);
+
+        var layout = {
+            margin: { t: 30, r: 30, b: 140, l: 80 },  // More generous margins
+            hovermode: 'closest',
+            xaxis: {
+                title: 'Month',
+                type: 'category',
+                tickangle: -45,
+                automargin: true,
+                tickmode: 'linear',
+                tick0: 0,
+                dtick: tickInterval  // Show every Nth label based on data range
+            },
+            yaxis: {
+                title: 'Count',
+                rangemode: 'tozero'
+            },
+            bargap: 0.1,  // Add small gap between bars for breathing room
+            font: { family: 'system-ui, -apple-system, sans-serif', size: 12 }
+        };
+
+        var config = {
+            responsive: true,
+            displayModeBar: false,
+            autosizable: true
+        };
+
+        Plotly.newPlot('chart-date-{{ variable.id }}', data, layout, config);
+    })();
+    </script>
+    {% endif %}
+
+    {% if variable.summary.year_breakdown %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Yearly totals" caption="Number of valid records per calendar year." />
+        <c-stat-table class="mt-2" key_heading="Year" value_heading="Count">
+            {% for entry in variable.summary.year_breakdown %}
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">{{ entry.year }}</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ entry.count }}</td>
+            </tr>
+            {% endfor %}
+        </c-stat-table>
+    </div>
+    {% endif %}
+
+    {% if variable.summary.invalid_examples %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Unparseable values" caption="Examples that could not be read as dates." />
+        <c-stat-table class="mt-2" key_heading="Value" value_heading="Count">
+            {% for entry in variable.summary.invalid_examples %}
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">{{ entry.value|default:"(blank)" }}</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ entry.count }}</td>
+            </tr>
+            {% endfor %}
+        </c-stat-table>
+    </div>
+    {% endif %}
+</div>

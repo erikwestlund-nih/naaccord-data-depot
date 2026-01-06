@@ -1,0 +1,17 @@
+---
+# Default variables for scan_user role
+
+# Scan user configuration
+scan_user_jhed: "ssuppor2"
+scan_user_email: "ssuppor2@jh.edu"
+scan_user_sso_email: "ssuppor2@johnshopkins.edu"
+scan_user_first_name: "Scan"
+scan_user_last_name: "Support"
+
+# Cohort configuration
+scan_cohort_name: "Scan Support"
+scan_cohort_description: "Test cohort for Acunetix security scanning"
+
+# Operational flags
+scan_user_remove_cohort: false  # Set to true to also remove cohort on deletion
+scan_user_skip_confirmation: false  # Set to true for automated operations

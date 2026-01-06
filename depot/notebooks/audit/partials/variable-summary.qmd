@@ -1,0 +1,49 @@
+```{r}
+#| echo: false
+#| results: asis
+
+# Get variable definition
+var_def <- d$definition[[var]]
+
+# Display variable description if available
+if (!is.null(var_def$description)) {
+  cat("### Description\n\n")
+  cat(var_def$description, "\n\n")
+}
+
+# Display summary statistics if available
+if (nrow(stats) > 0) {
+  cat("### Summary Statistics\n\n")
+  
+  # Get data for this variable
+  var_data <- d$db_stats$column_stats[[var]]
+  
+  if (!is.null(var_data)) {
+    # Create summary stats based on data type
+    if (var_def$type == "numeric") {
+      summary_stats <- data.frame(
+        Metric = c("Mean", "Median", "Min", "Max", "Std Dev"),
+        Value = c(
+          sprintf("%.2f", var_data$mean),
+          sprintf("%.2f", var_data$median),
+          sprintf("%.2f", var_data$min),
+          sprintf("%.2f", var_data$max),
+          sprintf("%.2f", var_data$std_dev)
+        ),
+        stringsAsFactors = FALSE
+      )
+    } else {
+      # For categorical data, show top values
+      top_values <- head(var_data$value_counts, 5)
+      summary_stats <- data.frame(
+        Value = names(top_values),
+        Count = as.character(top_values),
+        stringsAsFactors = FALSE
+      )
+    }
+    
+    print(kable(summary_stats) |>
+      kable_styling(bootstrap_options = c("hover")))
+  }
+}
+``` 

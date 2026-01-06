@@ -1,0 +1,17 @@
+name,label,order
+patient,Patient Record,-1
+diagnosis,Diagnosis Record,0
+laboratory,Laboratory Test Results Record,0
+medication,Medications Record,0
+medication_administration,Medication Administration (LAI ART),0
+mortality,Cause of Death Record,0
+geography,Geographic Data,0
+encounter,Encounter Information,0
+insurance,Insurance Information,0
+hospitalization,Hospitalizations,0
+substance_survey,Substance Use Survey Information,0
+mental_health_survey,Mental Health Survey Data,0
+procedure,Procedures,0
+discharge_dx,Discharge Diagnosis Data,0
+risk_factor,HIV Acquisition Risk Factor Record,0
+census,Census Table,0

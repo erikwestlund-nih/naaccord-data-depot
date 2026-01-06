@@ -1,0 +1,61 @@
+<c-app-page title="Protocol Years" heading="Protocol Years">
+
+    <div class="sm:flex sm:items-center">
+        <div class="sm:flex-auto">
+            <div class="w-48 mt-2 text-sm text-gray-700">
+                <c-input.search name="search" placeholder="Search protocol years" />
+            </div>
+        </div>
+        <div class="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
+            <button type="button" class="block rounded-md bg-red-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600">
+                Add Protocol Year
+            </button>
+        </div>
+    </div>
+
+    <div class="mt-8 flow-root">
+        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+            <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead>
+                    <tr>
+                        <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-0">Protocol Year</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Progress</th>
+                        <th class="relative py-3.5 pl-3 pr-4 sm:pr-0"><span class="sr-only">Actions</span></th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                    {% for year in protocol_years %}
+                        <tr>
+                            <td class="py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">{{ year.name }}</td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                {% if year.status == "Active" %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">{{ year.status }}</span>
+                                {% elif year.status == "Completed" %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">{{ year.status }}</span>
+                                {% elif year.status == "Not Started" %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">{{ year.status }}</span>
+                                {% else %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">{{ year.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                {{ year.completed_submissions }} / {{ year.total_submissions }} complete
+                                {% if year.in_progress_submissions > 0 %}
+                                    <span class="text-xs text-gray-400">({{ year.in_progress_submissions }} in progress)</span>
+                                {% endif %}
+                            </td>
+                            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
+                                <a href="{% url 'submissions_create' %}?protocol_year={{ year.id }}" class="text-red-600 hover:text-red-900">Start Submission<span class="sr-only"> for {{ year.name }}</span></a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+</c-app-page>

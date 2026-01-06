@@ -1,0 +1,8 @@
+username,email,first_name,last_name,sso_email,is_staff,is_superuser
+admin,admin@jh.edu,System,Administrator,admin@johnshopkins.edu,True,True
+vacs_mgr,vacs.manager@jh.edu,VACS,Manager,vacsmanager@johnshopkins.edu,True,False
+macs_user,macs.user@jh.edu,MACS,User,macsuser@johnshopkins.edu,False,False
+wihs_user,wihs.user@jh.edu,WIHS,User,wihsuser@johnshopkins.edu,False,False
+viewer,viewer@jh.edu,Read-Only,Viewer,viewer@johnshopkins.edu,False,False
+multi,multi.cohort@jh.edu,Multi,Cohort,multicohort@johnshopkins.edu,False,False
+nocohort,nocohort@jh.edu,No,Cohort,nocohort@johnshopkins.edu,False,False

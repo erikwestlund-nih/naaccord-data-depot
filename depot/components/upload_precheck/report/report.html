@@ -1,0 +1,42 @@
+<div>
+    <div class="mt-16 pb-8">
+        <h3 class="text-xl font-semibold text-gray-900">Audit Results</h3>
+        <p class="mt-2 max-w-4xl text-sm text-gray-500">Please inspect the below information for accuracy and conformity
+            with the data protocol.</p>
+    </div>
+
+    {% component "heading-divider" %} Data File Information {% endcomponent %}
+
+    <div class="mt-6 mb-12">
+        <dl class="divide-y divide-gray-100">
+            <div class="px-4 py-2 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
+                <dt class="text-sm/6 font-semibold text-gray-900">Data File Type</dt>
+                <dd class="mt-1 text-sm/6 text-gray-700 sm:col-span-2 sm:mt-0">{{ data_file_type_label }}</dd>
+            </div>
+            <div class="px-4 py-2 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
+                <dt class="text-sm/6"><span class="font-semibold text-gray-900">Variables</span> <span class="pl-1 text-gray-500">count</span></dt>
+                <dd class="mt-1 text-sm/6 text-gray-700 sm:col-span-2 sm:mt-0">{{ variable_count }}</dd>
+            </div>
+            <div class="px-4 py-2 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
+                <dt class="text-sm/6"><span class="font-semibold text-gray-900">Records</span> <span class="pl-1 text-gray-500">count</span></dt>
+                <dd class="mt-1 text-sm/6 text-gray-700 sm:col-span-2 sm:mt-0">{{ record_count }}</dd>
+            </div>
+            <div class="px-4 py-2 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
+                <dt class="text-sm/6"><span class="font-semibold text-gray-900">Net Empty</span> <span class="pl-1 text-gray-500">pct</span></dt>
+                <dd class="mt-1 text-sm/6 text-gray-700 sm:col-span-2 sm:mt-0">{{ net_empty_pct }}%</dd>
+            </div>
+        </dl>
+
+        <div class="mt-4 text-gray-600 text-xs"><span class="font-semibold">Note:</span> Net empty percent counts any empty value, legal or not. Illegal empty values are noted in the validation report for each variable below.</div>
+
+    </div>
+
+    {% component "heading-divider" %} Variable Summary {% endcomponent %}
+
+    <div class="mt-12">
+        {% component "audit.variable_summary"
+        summary_data=summary_data
+        validation_data=validation_data
+    / %}
+    </div>
+</div>

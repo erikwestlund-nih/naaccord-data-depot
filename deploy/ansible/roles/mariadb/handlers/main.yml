@@ -1,0 +1,26 @@
+---
+# MariaDB handlers
+
+- name: Restart MariaDB
+  ansible.builtin.systemd:
+    name: "{{ mariadb_service }}"
+    state: restarted
+  tags: ['mariadb', 'database']
+
+- name: Reload MariaDB
+  ansible.builtin.systemd:
+    name: "{{ mariadb_service }}"
+    state: reloaded
+  tags: ['mariadb', 'database']
+
+- name: Stop MariaDB
+  ansible.builtin.systemd:
+    name: "{{ mariadb_service }}"
+    state: stopped
+  tags: ['mariadb', 'database']
+
+- name: Start MariaDB
+  ansible.builtin.systemd:
+    name: "{{ mariadb_service }}"
+    state: started
+  tags: ['mariadb', 'database']

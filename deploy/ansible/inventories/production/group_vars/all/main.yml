@@ -1,0 +1,43 @@
+---
+# NA-ACCORD Production Environment Variables
+# Non-sensitive configuration
+
+# CRITICAL: NAS mount path is DIFFERENT in production
+# Production: /na_accord_nas (NOT /mnt/nas like staging)
+# Verified via: df -h on mrpznaaccorddb01
+nas_mount_point: "/na_accord_nas"
+nas_host: "cloud.nas.jh.edu"
+nas_share: "na-accord$"
+
+# Production domain name
+domain_name: "na-accord-depot.publichealth.jhu.edu"
+domain: "na-accord-depot.publichealth.jhu.edu"  # For nginx template compatibility
+
+# SSL Configuration
+# Note: Actual paths are defined in hosts.yml per environment
+ssl_enabled: true
+ssl_provider: "manual"  # JHU IT certificates from vault
+
+# SAML Configuration (JHU Shibboleth for production)
+# Action required: Register with JHU Enterprise Auth team (enterpriseauth@jh.edu)
+saml_entity_id: "https://na-accord-depot.publichealth.jhu.edu"
+saml_acs_url: "https://na-accord-depot.publichealth.jhu.edu/saml2/acs/"
+saml_sls_url: "https://na-accord-depot.publichealth.jhu.edu/saml2/sls/"
+saml_idp_metadata_file: "/app/deploy/saml/idp_metadata.xml"  # Container path (host repo is mounted at /app)
+saml_idp_metadata_file_host: "/opt/naaccord/depot/deploy/saml/idp_metadata.xml"  # Host path for Ansible deployment
+saml_idp_template: "idp_metadata.xml.j2"
+
+# Production IDP Details (for reference)
+# Entity ID: https://login.jh.edu/idp/shibboleth
+# SSO URL: https://login.jh.edu/idp/profile/SAML2/Redirect/SSO
+# Logout URL: https://login.jh.edu/cgi-bin/logoff.pl
+# Support: enterpriseauth@jh.edu
+
+# CRITICAL: These must be NEVER changed in production
+use_mock_saml: false  # Real JHU Shibboleth only
+use_docker_saml: true  # Production uses real SAML (djangosaml2), not mock backend
+debug: false  # NEVER enable debug in production
+allowed_hosts:
+  - "na-accord-depot.publichealth.jhu.edu"
+  - "mrpznaaccordweb01.hosts.jhmi.edu"  # Internal hostname
+  - "10.150.96.6"  # Direct IP access

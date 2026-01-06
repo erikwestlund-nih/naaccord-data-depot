@@ -1,0 +1,29 @@
+<div {% html_attrs container_attrs %}>
+    {% if label %}
+    <label
+        for="{{ name }}"
+        class="block text-sm font-semibold leading-6 text-gray-900{% if error %} text-red-500{% endif %}"
+    >{{ label }}</label>
+    {% endif %}
+    <div class="mt-2">
+        <input
+            id="{{ name }}"
+            name="{{ name }}"
+            {% if type %}type="{{ type }}"{% endif %}
+            {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %}
+            {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+            {% if required %}required{% endif %}
+            {% if value %} value="{{ value }}" {% endif %}
+            {% html_attrs attrs %}
+            class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-800 sm:text-sm sm:leading-6 {% if error %} ring-2 ring-red-600 {% endif %}"
+        >
+    </div>
+
+    {% if error %}
+    <ul class="text-xs mt-1.5 text-red-600 list-unstyled">
+        {% for error_message in error_messages %}
+        <li>{{ error_message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>

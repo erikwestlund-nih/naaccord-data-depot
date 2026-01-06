@@ -1,0 +1,23 @@
+username,first_name,last_name,email,sso_email,is_staff,is_superuser
+ewestlund,Erik,Westlund,ewestlund@jhu.edu,ewestlu1@johnshopkins.edu,True,True
+ahackman,Andre,Hackman,ahackman@jhu.edu,ahackma1@johnshopkins.edu,True,True
+kalthoff,Keri,Althoff,kalothoff@jhu.edu,kalthof1@johnshopkins.edu,True,False
+bhogan,Brenna,Hogan,bhogan7@jhu.edu,bhogan7@johnshopkins.edu,True,False
+clesko,Catherine,Lesko,clesko2@jhu.edu,clesko2@johnshopkins.edu,True,False
+lsnow,LaQuita,Snow,lsnow7@jhu.edu,lsnow7@johnshopkins.edu,False,False
+jkeruly,Jeanne,Keruly,jkeruly@jhmi.edu,jkeruly1@johnshopkins.edu,False,False
+rmoore,Richard,Moore,rdmoore@jhmi.edu,rmoore8@johnshopkins.edu,False,False
+tfojo,Todd,Fojo,Anthony.Fojo@jhmi.edu,tfojo1@johnshopkins.edu,False,False
+slawa,Srijana,Lawa,slawa1@jhu.edu,slawa1@johnshopkins.edu,False,False
+abandala,Mateo,Bandala Jacques,abandal1@jhmi.edu,abandal1@johnshopkins.edu,False,False
+sgange,Stephen,Gange,sgange@jhu.edu,sgange1@johnshopkins.edu,False,False
+etopper,Elizabeth,Topper,etopper@jhu.edu,etopper@johnshopkins.edu,False,False
+adsouza,Amber,D'Souza,gdsouza2@jhu.edu,gdsouza2@johnshopkins.edu,False,False
+dhanna,David,Hanna,david.hanna@einsteinmed.edu,,False,False
+ufelsen,Uriel,Felsen,UFELSEN@montefiore.org,,False,False
+mginsberg,Mindy,Ginsberg,mindy.ginsberg@einsteinmed.edu,,False,False
+nrelucio,Noel,Relucio,noel.relucio@einsteinmed.edu,,False,False
+lesley_park,Lesley,Park,lesley.park@stanford.edu,,False,False
+melissa_skanderson,Melissa,Skanderson,melissa.skanderson@va.gov,,False,False
+christine_hardy,Christine,Hardy,christine.hardy@va.gov,,False,False
+farah_kidwai_khan,Farah,Kidwai-Khan,farah.kidwai-khan@va.gov,,False,False

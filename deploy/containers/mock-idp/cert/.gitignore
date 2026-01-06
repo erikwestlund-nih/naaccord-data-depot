@@ -1,0 +1,10 @@
+# Never commit private keys to git
+*.key
+*.pem
+
+# Certificates can be committed (they're public) but we generate them locally
+*.crt
+*.cert
+
+# Keep this .gitignore file
+!.gitignore

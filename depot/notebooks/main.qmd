@@ -1,0 +1,49 @@
+---
+title: "Data Quality Report"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    toc-title: "Contents"
+    number-sections: true
+    theme: cosmo
+    css: styles.css
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+
+library(knitr)
+library(kableExtra)
+library(duckdb)
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(stringr)
+library(lubridate)
+library(jsonlite)
+library(yaml)
+
+# Load the data
+d <- readRDS("data.rds")
+```
+
+# Overview
+
+```{r}
+#| label: overview
+#| include: true
+source("partials/summary.qmd")
+```
+
+# Variables
+
+```{r}
+#| label: variables
+#| include: true
+source("partials/variable-sections.qmd")
+``` 

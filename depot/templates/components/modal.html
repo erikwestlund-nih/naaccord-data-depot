@@ -1,0 +1,82 @@
+<c-vars 
+    id="modal" 
+    title="Modal Title" 
+    size="md" 
+    close_button="true"
+    footer="true"
+/>
+
+<!-- Modal component with backdrop and proper styling -->
+<div id="{{ id }}" 
+     class="fixed inset-0 z-50 overflow-y-auto hidden" 
+     aria-labelledby="{{ id }}-title" 
+     role="dialog" 
+     aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Background overlay -->
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" 
+             onclick="closeModal('{{ id }}')"></div>
+        
+        <!-- Modal panel -->
+        <div class="inline-block align-bottom bg-white rounded-lg text-left shadow-xl transform transition-all sm:my-8 sm:align-middle 
+                    {% if size == 'sm' %}sm:max-w-sm{% elif size == 'lg' %}sm:max-w-4xl{% elif size == 'xl' %}sm:max-w-6xl{% else %}sm:max-w-lg{% endif %} sm:w-full">
+            
+            <!-- Modal header -->
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="flex justify-between items-start">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900" id="{{ id }}-title">
+                        {{ title }}
+                    </h3>
+                    {% if close_button == "true" %}
+                    <button type="button" 
+                            onclick="closeModal('{{ id }}')"
+                            class="text-gray-400 hover:text-gray-500">
+                        <c-icon icon="x-mark" family="solid" class="h-5 w-5" />
+                    </button>
+                    {% endif %}
+                </div>
+                
+                <!-- Modal body content -->
+                <div class="mt-4">
+                    {{ slot }}
+                </div>
+            </div>
+            
+            <!-- Modal footer (optional) -->
+            {% if footer == "true" %}
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                {{ footer_slot }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Modal helper functions
+window.showModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; // Prevent body scroll
+    }
+}
+
+window.closeModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = ''; // Restore body scroll
+    }
+}
+
+// Close modal on ESC key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const modals = document.querySelectorAll('[role="dialog"]:not(.hidden)');
+        modals.forEach(modal => {
+            closeModal(modal.id);
+        });
+    }
+});
+</script>

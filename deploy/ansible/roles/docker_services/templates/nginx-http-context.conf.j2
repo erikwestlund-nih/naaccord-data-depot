@@ -1,0 +1,15 @@
+# NA-ACCORD HTTP Context Configuration
+# NOTE: Rate limiting zones, proxy cache, client body settings, connection settings,
+# logging format, and security headers are already configured in the base nginx.conf
+# that is baked into the nginx container image.
+#
+# This file is for environment-specific overrides only.
+
+{% if not ssl_enabled | default(true) %}
+# Staging environment - behind NPM/Cloudflare Tunnel
+# Map X-Forwarded-Proto header to preserve SSL info from upstream proxy
+map $http_x_forwarded_proto $forwarded_proto {
+    default $http_x_forwarded_proto;
+    ''      $scheme;
+}
+{% endif %}

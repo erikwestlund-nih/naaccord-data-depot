@@ -1,0 +1,41 @@
+{# ID Type Summary - Shows unique count, duplicates, and sample values #}
+
+<div class="px-6 pt-3 pb-6 space-y-8 divide-y divide-gray-200">
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Summary statistics" caption="ID uniqueness and null coverage." />
+        <c-stat-table class="mt-2" key_heading="Statistic" value_heading="Value">
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Total IDs</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.summary.total_non_null|floatformat:0|default:"0" }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Unique IDs</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.summary.unique_count|floatformat:0|default:"0" }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Duplicates</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">
+                    {% if variable.summary.duplicate_count > 0 %}
+                        {{ variable.summary.duplicate_count|floatformat:0 }}
+                    {% else %}
+                        0
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Null values</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.null_count|floatformat:0 }}</td>
+            </tr>
+        </c-stat-table>
+    </div>
+
+    {# Sample Values #}
+    {% if variable.summary.sample_values %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Sample values" caption="Representative unique identifiers (first 20)." />
+        <p class="text-[13px] text-gray-500 leading-snug">
+            {{ variable.summary.sample_values|join:", " }}{% if variable.summary.unique_count > 20 %}, … ({{ variable.summary.unique_count|floatformat:0 }} total){% endif %}
+        </p>
+    </div>
+    {% endif %}
+</div>

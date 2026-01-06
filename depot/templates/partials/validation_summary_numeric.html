@@ -1,0 +1,114 @@
+{# Numeric Type Summary - Shows statistics with histogram #}
+
+<div class="px-6 pt-3 pb-6 space-y-8 divide-y divide-gray-200 max-w-full overflow-hidden">
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Summary statistics" caption="Key descriptive measures for this variable." />
+        <c-stat-table key_heading="Statistic" value_heading="Value">
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Minimum</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">
+                    {% if variable.column_type == 'year' %}
+                        {{ variable.summary.min|floatformat:0|default:"—" }}
+                    {% else %}
+                        {{ variable.summary.min|floatformat:1|default:"—" }}
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Maximum</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">
+                    {% if variable.column_type == 'year' %}
+                        {{ variable.summary.max|floatformat:0|default:"—" }}
+                    {% else %}
+                        {{ variable.summary.max|floatformat:1|default:"—" }}
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Mean</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">
+                    {% if variable.column_type == 'year' %}
+                        {{ variable.summary.mean|floatformat:0|default:"—" }}
+                    {% else %}
+                    {{ variable.summary.mean|floatformat:1|default:"—" }}
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Median</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">
+                    {% if variable.column_type == 'year' %}
+                        {{ variable.summary.median|floatformat:0|default:"—" }}
+                    {% else %}
+                        {{ variable.summary.median|floatformat:1|default:"—" }}
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Null values</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.null_count|floatformat:0 }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Empty strings</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.empty_count|floatformat:0 }}</td>
+            </tr>
+        </c-stat-table>
+    </div>
+
+    {# Histogram Visualization #}
+    {% if variable.summary.chart_type == 'histogram' %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Distribution" caption="Histogram of observed values." />
+        <div class="bg-white rounded-lg border border-gray-200 p-4 max-w-full overflow-hidden">
+            <div id="chart-{{ variable.id }}" class="w-full" style="height:400px;"></div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Wait for Plotly to load
+        if (typeof Plotly === 'undefined') {
+            console.error('Plotly not loaded');
+            return;
+        }
+
+        var data = [{
+            x: {{ variable.summary.chart_data.values|safe }},
+            type: 'histogram',
+            marker: {
+                color: 'rgb(59, 130, 246)',
+                line: {
+                    color: 'rgb(255, 255, 255)',
+                    width: 1
+                }
+            },
+            autobinx: true
+        }];
+
+        var layout = {
+            margin: { t: 20, r: 20, b: 100, l: 60 },
+            xaxis: {
+                title: '{{ variable.display_name|escapejs }}',
+                automargin: true,
+                nticks: 15  // Limit tick labels to prevent overflow on wide ranges
+            },
+            yaxis: {
+                title: 'Frequency'
+            },
+            font: {
+                family: 'system-ui, -apple-system, sans-serif',
+                size: 12
+            },
+            bargap: 0.05
+        };
+
+        var config = {
+            responsive: true,
+            displayModeBar: false
+        };
+
+        Plotly.newPlot('chart-{{ variable.id }}', data, layout, config);
+    })();
+    </script>
+    {% endif %}
+</div>

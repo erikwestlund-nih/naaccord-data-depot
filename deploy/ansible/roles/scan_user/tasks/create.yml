@@ -1,0 +1,35 @@
+---
+# Create scan support user with normal permissions
+
+- name: Create scan support user
+  become: true
+  become_user: naaccord
+  ansible.builtin.command:
+    cmd: >
+      docker exec naaccord-services
+      python manage.py create_scan_user
+      --jhed {{ scan_user_jhed }}
+      --email {{ scan_user_email }}
+      --sso-email {{ scan_user_sso_email }}
+      --first-name {{ scan_user_first_name }}
+      --last-name {{ scan_user_last_name }}
+  register: create_result
+  changed_when: "'✓ SCAN USER CREATED SUCCESSFULLY' in create_result.stdout"
+  failed_when: create_result.rc != 0
+  tags:
+    - scan_user
+    - scan_user_create
+
+- name: Display creation output
+  ansible.builtin.debug:
+    msg: "{{ create_result.stdout_lines }}"
+  tags:
+    - scan_user
+    - scan_user_create
+
+- name: Save creation timestamp
+  ansible.builtin.set_fact:
+    scan_user_created_at: "{{ ansible_date_time.iso8601 }}"
+  tags:
+    - scan_user
+    - scan_user_create

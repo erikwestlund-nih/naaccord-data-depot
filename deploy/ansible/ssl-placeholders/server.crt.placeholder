@@ -1,0 +1,34 @@
+# =============================================================================
+# SSL Server Certificate Placeholder
+# =============================================================================
+#
+# This is a PLACEHOLDER file showing where the actual SSL certificate should be installed.
+# DO NOT commit actual certificates to git!
+#
+# Installation Path (Production):
+#   /etc/ssl/certs/naaccord/server.crt
+#
+# Certificate Requirements:
+#   - Common Name (CN): mrpznaaccordweb01.hosts.jhmi.edu
+#   - Issued by: JHU Certificate Authority
+#   - Valid for: Minimum 1 year
+#   - Format: PEM encoded
+#   - Must include: Server certificate only (chain goes in ca-bundle.crt)
+#
+# How to Install:
+#   1. Obtain certificate from JHU IT
+#   2. Copy to production server:
+#      sudo cp certificate.crt /etc/ssl/certs/naaccord/server.crt
+#   3. Set permissions:
+#      sudo chmod 644 /etc/ssl/certs/naaccord/server.crt
+#   4. Verify:
+#      openssl x509 -in /etc/ssl/certs/naaccord/server.crt -noout -text
+#
+# Example Certificate Format:
+# -----BEGIN CERTIFICATE-----
+# MIIDXTCCAkWgAwIBAgIJAKL0UG+mRkVqMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
+# ... (certificate data) ...
+# -----END CERTIFICATE-----
+#
+# See README.md for complete installation instructions
+# =============================================================================

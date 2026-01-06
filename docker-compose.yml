@@ -1,0 +1,224 @@
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: naaccord-test-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: naaccord
+      MYSQL_USER: naaccord
+      MYSQL_PASSWORD: I4ms3cr3t
+    ports:
+      - "3310:3306"
+    networks:
+      - shared-net
+    volumes:
+      - ${DOCKER_DATA_DIR:-./storage/docker}/mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: naaccord-test-redis
+    ports:
+      - "6393:6379"
+    networks:
+      - shared-net
+
+  mock-idp:
+    image: ghcr.io/jhbiostatcenter/naaccord/mock-idp:latest
+    container_name: naaccord-test-idp
+    ports:
+      - "8082:8080"
+    environment:
+      - SIMPLESAMLPHP_SECRET=defaultsecretchangeme
+      - SIMPLESAMLPHP_ADMIN_PASSWORD=admin
+      - SIMPLESAMLPHP_BASEURL=http://localhost:8082/simplesaml/
+    volumes:
+      - ./deploy/containers/mock-idp/config:/var/simplesamlphp/config:ro
+      - ./deploy/containers/mock-idp/metadata:/var/simplesamlphp/metadata:ro
+      - ./deploy/containers/mock-idp/cert:/var/simplesamlphp/cert:ro
+    networks:
+      - shared-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/simplesaml/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  web:
+    image: ghcr.io/jhbiostatcenter/naaccord/web:latest
+    container_name: naaccord-test-web
+    environment:
+      SERVER_ROLE: web
+      SERVICES_URL: http://services:8001
+      INTERNAL_API_KEY: test-key-123
+      DB_HOST: mariadb
+      DB_USER: naaccord
+      DB_PASSWORD: I4ms3cr3t
+      DB_NAME: naaccord
+      CELERY_BROKER_URL: redis://redis:6379/0
+      USE_DOCKER_SAML: "True"
+      SAML_ENTITY_ID: "http://naaccord.test"
+      SAML_ACS_URL: "http://naaccord.test/saml2/acs/"
+      SAML_SLS_URL: "http://naaccord.test/saml2/ls/"
+      SAML_IDP_METADATA_URL: "http://mock-idp:8080/simplesaml/saml2/idp/metadata.php"
+      SAML_IDP_SSO_URL: "http://mock-idp:8080/simplesaml/saml2/idp/SSOService.php"
+      DEV_MODE: "true"
+      DEBUG: "True"
+      DJANGO_SETTINGS_MODULE: depot.settings
+      ALLOWED_HOSTS: "localhost,127.0.0.1,web,naaccord.pequod.sh,naaccord.test"
+    user: root
+    ports:
+      - "127.0.0.1:8040:8000"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      mock-idp:
+        condition: service_healthy
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    networks:
+      - shared-net
+    volumes:
+      - ./:/app  # Mount entire application directory for auto-reload
+      - ./static:/app/static  # Mount static directory for development
+
+  services:
+    image: ghcr.io/jhbiostatcenter/naaccord/services:latest
+    container_name: naaccord-test-services
+    environment:
+      SERVER_ROLE: services
+      INTERNAL_API_KEY: test-key-123
+      DB_HOST: mariadb
+      DB_USER: naaccord
+      DB_PASSWORD: I4ms3cr3t
+      DB_NAME: naaccord
+      DB_ENGINE: django.db.backends.mysql
+      CELERY_BROKER_URL: redis://redis:6379/0
+      USE_MOCK_SAML: "True"
+      USE_DOCKER_SAML: "False"
+      DEV_MODE: "true"
+      DEBUG: "True"
+      DJANGO_SETTINGS_MODULE: depot.settings
+      ALLOWED_HOSTS: "services,localhost,127.0.0.1"
+      # R environment variables
+      R_HOME: /usr/lib/R
+      R_LIBS_USER: /usr/local/lib/R/site-library
+      # NAS paths
+      NAS_WORKSPACE_PATH: /mnt/nas/workspace
+      NAS_REPORTS_PATH: /mnt/nas/reports
+    ports:
+      - "127.0.0.1:8041:8001"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - shared-net
+    volumes:
+      - ./:/app  # Mount entire application directory for auto-reload
+      - ./static:/app/static  # Mount static directory for development
+      - ./storage:/app/storage  # General storage mount
+      - ./storage/uploads:/app/storage/uploads  # Dedicated uploads mount (change to volume in production)
+      - ./storage/nas/uploads:/mnt/nas/uploads  # Mount uploads for temporary upload storage
+      - ./storage/nas/workspace:/mnt/nas/workspace  # Mount workspace for in-process work
+      - ./storage/nas/submissions:/mnt/nas/submissions  # Mount submissions for permanent storage
+      - ./storage/nas/reports:/mnt/nas/reports  # Mount reports for generated output
+      - ./storage/nas/attachments:/mnt/nas/attachments  # Mount attachments for user uploads
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8001"]
+
+  celery:
+    image: ghcr.io/jhbiostatcenter/naaccord/services:latest
+    container_name: naaccord-test-celery
+    environment:
+      SERVER_ROLE: services
+      SERVICE_TYPE: celery
+      CELERY_QUEUES: "celery,default,critical,low"
+      INTERNAL_API_KEY: test-key-123
+      DB_HOST: mariadb
+      DB_USER: naaccord
+      DB_PASSWORD: I4ms3cr3t
+      DB_NAME: naaccord
+      DB_ENGINE: django.db.backends.mysql
+      CELERY_BROKER_URL: redis://redis:6379/0
+      USE_MOCK_SAML: "True"
+      USE_DOCKER_SAML: "False"
+      DEV_MODE: "false"
+      DEBUG: "True"
+      DJANGO_SETTINGS_MODULE: depot.settings
+      ALLOWED_HOSTS: "services,localhost,127.0.0.1"
+      # R environment variables
+      R_HOME: /usr/lib/R
+      R_LIBS_USER: /usr/local/lib/R/site-library
+      # NAS paths
+      NAS_WORKSPACE_PATH: /mnt/nas/workspace
+      NAS_REPORTS_PATH: /mnt/nas/reports
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      services:
+        condition: service_started
+    networks:
+      - shared-net
+    volumes:
+      - ./:/app  # Mount entire application directory for auto-reload
+      - ./static:/app/static  # Mount static directory for development
+      - ./storage:/app/storage  # General storage mount
+      - ./storage/uploads:/app/storage/uploads  # Dedicated uploads mount (change to volume in production)
+      - ./storage/nas/uploads:/mnt/nas/uploads  # Mount uploads for temporary upload storage
+      - ./storage/nas/workspace:/mnt/nas/workspace  # Mount workspace for in-process work
+      - ./storage/nas/submissions:/mnt/nas/submissions  # Mount submissions for permanent storage
+      - ./storage/nas/reports:/mnt/nas/reports  # Mount reports for generated output
+      - ./storage/nas/attachments:/mnt/nas/attachments  # Mount attachments for user uploads
+    command: ["celery", "-A", "depot", "worker", "-l", "info"]
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./depot
+          target: /app/depot
+          ignore:
+            - "**/__pycache__"
+            - "**/*.pyc"
+            - "**/*.pyo"
+
+  flower:
+    image: ghcr.io/jhbiostatcenter/naaccord/services:latest
+    container_name: naaccord-test-flower
+    environment:
+      SERVER_ROLE: services
+      INTERNAL_API_KEY: test-key-123
+      DB_HOST: mariadb
+      DB_USER: naaccord
+      DB_PASSWORD: I4ms3cr3t
+      DB_NAME: naaccord
+      CELERY_BROKER_URL: redis://redis:6379/0
+      USE_MOCK_SAML: "True"
+      USE_DOCKER_SAML: "False"
+      DEV_MODE: "true"
+      DEBUG: "True"
+      DJANGO_SETTINGS_MODULE: depot.settings
+    ports:
+      - "127.0.0.1:5555:5555"
+    depends_on:
+      redis:
+        condition: service_started
+      celery:
+        condition: service_started
+    networks:
+      - shared-net
+    volumes:
+      - ./:/app
+    command: ["celery", "-A", "depot", "flower", "--port=5555"]
+
+networks:
+  shared-net:
+    driver: bridge

@@ -1,0 +1,19 @@
+{% load extras %}
+
+<c-vars name errors class />
+
+{% with messages=errors|get_item:name %}
+    {% if messages %}
+        {% if messages|length > 1 %}
+            <ul class="text-xs text-red-600 list-unstyled {{ class }}">
+                {% for msg in messages %}
+                    <li>{{ msg }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="text-sm mt-1.5 text-red-600">
+                {{ messages.0 }}
+            </div>
+        {% endif %}
+    {% endif %}
+{% endwith %}

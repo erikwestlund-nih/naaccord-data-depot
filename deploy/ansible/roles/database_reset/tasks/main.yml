@@ -1,0 +1,142 @@
+---
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║   🚨🚨🚨 DANGER: THIS ROLE DESTROYS ALL DATA 🚨🚨🚨                          ║
+# ║                                                                              ║
+# ║   ONLY use for initial server setup with EMPTY database.                     ║
+# ║   To add cohorts/users incrementally, use seed_from_csv instead.             ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+- name: Confirm database reset (if not using --skip-confirmation)
+  ansible.builtin.pause:
+    prompt: |
+
+      ╔══════════════════════════════════════════════════════════════════════════════╗
+      ║                                                                              ║
+      ║   🚨🚨🚨 DANGER: THIS WILL PERMANENTLY DELETE ALL DATA 🚨🚨🚨               ║
+      ║                                                                              ║
+      ║   Environment: {{ naaccord_environment }}                                    ║
+      ║   Database: naaccord                                                         ║
+      ║                                                                              ║
+      ║   THIS WILL DELETE:                                                          ║
+      ║   - All user submissions and uploads                                         ║
+      ║   - All audit records and validation results                                 ║
+      ║   - All cohort data and memberships                                          ║
+      ║   - All user accounts and permissions                                        ║
+      ║   - EVERYTHING IN THE DATABASE                                               ║
+      ║                                                                              ║
+      ║   If you want to ADD cohorts or users, DO NOT USE THIS.                      ║
+      ║   Instead use: python manage.py seed_from_csv ...                            ║
+      ║                                                                              ║
+      ╚══════════════════════════════════════════════════════════════════════════════╝
+
+      Type "DELETE ALL DATA" to confirm (anything else will abort)
+  register: reset_confirmation
+  when: not (ansible_skip_confirmation | default(false))
+  tags: ['database', 'reset']
+
+- name: Abort if not confirmed
+  ansible.builtin.fail:
+    msg: "Database reset aborted - confirmation phrase not entered"
+  when:
+    - not (ansible_skip_confirmation | default(false))
+    - reset_confirmation.user_input != 'DELETE ALL DATA'
+  tags: ['database', 'reset']
+
+- name: Ensure services container is running for database operations
+  ansible.builtin.command:
+    cmd: docker compose -f {{ docker_compose_file }} up -d services
+    chdir: "{{ naaccord_repo_path }}"
+  register: docker_up_services
+  changed_when: "'Started' in docker_up_services.stderr or 'Created' in docker_up_services.stderr"
+  tags: ['database', 'reset']
+
+- name: Wait for services container to be ready
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python -c "import django; django.setup(); print('ready')"
+  register: services_ready
+  until: services_ready.rc == 0
+  retries: 10
+  delay: 2
+  changed_when: false
+  tags: ['database', 'reset']
+
+- name: Reset database (drop and recreate all tables)
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py reset_db
+  register: reset_db_result
+  changed_when: true
+  tags: ['database', 'reset']
+
+- name: Run Django database migrations
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py migrate
+  register: django_migrate
+  changed_when: "'Applying' in django_migrate.stdout"
+  tags: ['database', 'reset', 'migrations']
+
+- name: Run django_celery_beat migrations
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py migrate django_celery_beat
+  register: celery_beat_migrate
+  changed_when: "'Applying' in celery_beat_migrate.stdout"
+  tags: ['database', 'reset', 'migrations']
+
+- name: Seed initial data (environment-specific cohorts)
+  ansible.builtin.shell:
+    cmd: docker exec -e NAACCORD_ENVIRONMENT={{ naaccord_environment }} naaccord-services python manage.py seed_init
+  register: seed_init_result
+  changed_when: true
+  tags: ['database', 'reset', 'seeding']
+
+- name: Setup Django permission groups (deletes legacy groups)
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py setup_permission_groups
+  register: setup_groups_result
+  changed_when: "'Created' in setup_groups_result.stdout or 'Deleted' in setup_groups_result.stdout"
+  tags: ['database', 'reset', 'seeding']
+
+- name: Load environment-specific users (test users for staging, real users for production)
+  ansible.builtin.shell:
+    cmd: docker exec -e NAACCORD_ENVIRONMENT={{ naaccord_environment }} naaccord-services python manage.py load_test_users
+  register: load_users_result
+  changed_when: true
+  tags: ['database', 'reset', 'seeding', 'users']
+
+- name: Assign users to permission groups
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py assign_test_users_to_groups
+  register: assign_groups_result
+  changed_when: true
+  tags: ['database', 'reset', 'seeding', 'users']
+
+- name: Create scan support user (ssuppor2) for Acunetix security scanning
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py create_scan_user
+  register: create_scan_user_result
+  changed_when: "'CREATED' in create_scan_user_result.stdout or 'Updated' in create_scan_user_result.stdout"
+  tags: ['database', 'reset', 'seeding', 'users', 'security']
+
+- name: Restart all services containers
+  ansible.builtin.command:
+    cmd: docker compose -f {{ docker_compose_file }} --profile services restart
+    chdir: "{{ naaccord_repo_path }}"
+  register: docker_restart
+  changed_when: true
+  tags: ['database', 'reset']
+
+- name: Display reset summary
+  ansible.builtin.debug:
+    msg: |
+      ✅ Database reset complete!
+
+      Environment: {{ naaccord_environment }}
+      Cohorts loaded: {{ seed_init_result.stdout_lines | select('search', 'Created') | list | length }}
+      Groups created: {{ setup_groups_result.stdout_lines | select('search', 'Created') | list | length }}
+      Legacy groups deleted: {{ setup_groups_result.stdout_lines | select('search', 'Deleted') | list | length }}
+      {% if naaccord_environment == 'staging' %}
+      Test users loaded: {{ load_users_result.stdout_lines | select('search', 'Created') | list | length }}
+      {% else %}
+      Test users: SKIPPED (production)
+      {% endif %}
+      Scan user (ssuppor2): {{ 'CREATED' if 'CREATED' in create_scan_user_result.stdout else 'UPDATED' }}
+  tags: ['database', 'reset']

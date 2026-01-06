@@ -1,0 +1,7 @@
+name,year,description,is_active,start_date,end_date
+2020,2020,Protocol Year 2020,False,2020-01-01,2020-12-31
+2021,2021,Protocol Year 2021,False,2021-01-01,2021-12-31
+2022,2022,Protocol Year 2022,False,2022-01-01,2022-12-31
+2023,2023,Protocol Year 2023,False,2023-01-01,2023-12-31
+2024,2024,Protocol Year 2024,True,2024-01-01,2024-12-31
+2025,2025,Protocol Year 2025,True,2025-01-01,2025-12-31

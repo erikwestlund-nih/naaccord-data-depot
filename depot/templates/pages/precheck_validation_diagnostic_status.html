@@ -1,0 +1,462 @@
+{% load depot_filters %}
+<c-app-page title="Precheck Validation Status">
+    <c-page-header
+        heading="Precheck Validation"
+        blurb="Progressive file analysis and validation - {{ validation.original_filename }}"
+    >
+    </c-page-header>
+
+    <!-- Back Link -->
+    <div class="mt-6 mb-6">
+        <a href="{% url 'precheck_validation_page' %}" class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+            <c-icon icon="arrow-left" class="h-4 w-4 mr-2" />
+            Back to Precheck Validation
+        </a>
+    </div>
+
+    <!-- Validation Status with Alpine.js Polling -->
+    <div x-data="diagnosticValidationStatus()" x-init="init()" class="mt-6 space-y-6">
+
+        <!-- Progress Section -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Validation Progress</h3>
+                <span class="text-sm font-medium"
+                      :class="{
+                          'text-gray-700': status === 'pending',
+                          'text-blue-700': status === 'analyzing_metadata' || status === 'checking_integrity' || status === 'converting_duckdb' || status === 'validating_patient_ids' || status === 'validating',
+                          'text-green-700': status === 'completed' && !hasErrors,
+                          'text-red-800': status === 'failed' || (status === 'completed' && hasErrors)
+                      }"
+                      x-text="statusLabel"></span>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="relative">
+                <div class="overflow-hidden h-4 mb-2 text-xs flex rounded bg-gray-200">
+                    <div
+                        class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-500"
+                        :class="{
+                            'bg-blue-600': status !== 'completed' && status !== 'failed',
+                            'bg-green-600': status === 'completed' && !hasErrors,
+                            'bg-red-600': status === 'failed' || (status === 'completed' && hasErrors)
+                        }"
+                        :style="'width: ' + progressPercent + '%'">
+                    </div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-600">
+                    <span x-text="currentStage || 'Waiting to start...'"></span>
+                    <span x-text="progressPercent + '%'"></span>
+                </div>
+            </div>
+
+            <!-- Status Icon and Message -->
+            <div class="mt-4" x-show="status !== 'pending'">
+                <!-- Message with icon for errors -->
+                <div x-show="status === 'failed' || (status === 'completed' && hasErrors)" x-cloak class="flex items-start gap-3">
+                    <c-icon icon="circle-exclamation" family="solid" class="h-5 w-5 text-red-600 flex-shrink-0" />
+                    <p class="text-sm font-medium text-gray-900" x-text="statusMessage"></p>
+                </div>
+
+                <!-- Message without icon for success/processing -->
+                <div x-show="status !== 'failed' && !(status === 'completed' && hasErrors)" x-cloak>
+                    <p class="text-sm font-medium text-gray-900" x-text="statusMessage"></p>
+                    <p class="text-xs text-gray-500 mt-1" x-show="status !== 'completed' && status !== 'failed'">
+                        Status updates automatically every 2 seconds
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Display -->
+        <div x-show="status === 'failed' && errorMessage" x-cloak class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div class="flex items-start gap-3">
+                <c-icon icon="exclamation-triangle" family="solid" class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                    <h4 class="text-sm font-medium text-red-900">Validation Failed</h4>
+                    <p class="text-sm text-red-800 mt-1" x-text="errorMessage"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Metadata Section -->
+        <div x-show="fileMetadata" x-cloak class="bg-white shadow rounded-lg p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">File Metadata</h3>
+            <dl class="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-3">
+                <div class="sm:col-span-1">
+                    <dt class="text-sm font-medium text-gray-500">File Size</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="fileMetadata?.size ? formatFileSize(fileMetadata.size) : 'N/A'"></dd>
+                </div>
+                <div class="sm:col-span-1">
+                    <dt class="text-sm font-medium text-gray-500">Encoding</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="fileMetadata?.encoding || 'N/A'"></dd>
+                </div>
+                <div class="sm:col-span-1 sm:row-span-4" x-show="fileMetadata?.columns && fileMetadata.columns.length > 0">
+                    <dt class="text-sm font-medium text-gray-500">Column Names</dt>
+                    <dd class="mt-1 text-sm text-gray-900 font-mono">
+                        <ol class="list-decimal list-inside space-y-1">
+                            <template x-for="(column, index) in (fileMetadata?.columns || [])" :key="index">
+                                <li x-text="column"></li>
+                            </template>
+                        </ol>
+                    </dd>
+                </div>
+                <div class="sm:col-span-1">
+                    <dt class="text-sm font-medium text-gray-500">BOM Detected</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="fileMetadata?.has_bom === true ? 'Yes' : fileMetadata?.has_bom === false ? 'No' : 'N/A'"></dd>
+                </div>
+                <div class="sm:col-span-1">
+                    <dt class="text-sm font-medium text-gray-500">Delimiter</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="fileMetadata?.delimiter === ',' ? 'comma' : (fileMetadata?.delimiter || 'N/A')"></dd>
+                </div>
+                <div class="sm:col-span-1">
+                    <dt class="text-sm font-medium text-gray-500">Number of Rows</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="fileMetadata?.line_count || 'N/A'"></dd>
+                </div>
+                <div class="sm:col-span-1">
+                    <dt class="text-sm font-medium text-gray-500">Line Ending</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="fileMetadata?.has_crlf === true ? 'Windows (CRLF)' : fileMetadata?.has_crlf === false ? 'Unix (LF)' : 'N/A'"></dd>
+                </div>
+                <div class="sm:col-span-1">
+                    <dt class="text-sm font-medium text-gray-500">Column Count</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="fileMetadata?.header_column_count || 'N/A'"></dd>
+                </div>
+                <div class="sm:col-span-3">
+                    <dt class="text-sm font-medium text-gray-500">SHA256 Hash</dt>
+                    <dd class="mt-1 text-sm text-gray-900 font-mono break-all" x-text="fileMetadata?.hash || 'N/A'"></dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- CSV Integrity Section -->
+        <div x-show="integrityResults" x-cloak class="bg-white shadow rounded-lg p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">CSV Integrity Analysis</h3>
+            <dl class="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+                <div class="sm:col-span-1">
+                    <dt class="text-sm font-medium text-gray-500">Total Rows</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="integrityResults?.total_rows?.toLocaleString() || 'N/A'"></dd>
+                </div>
+                <div class="sm:col-span-1">
+                    <dt class="text-sm font-medium text-gray-500">Malformed Rows</dt>
+                    <dd class="mt-1 text-sm"
+                        :class="integrityResults?.malformed_row_count > 0 ? 'text-red-700 font-medium' : 'text-green-700'"
+                        x-text="integrityResults?.malformed_row_count || '0'"></dd>
+                </div>
+            </dl>
+
+            <!-- Malformed Rows Detail -->
+            <div x-show="integrityResults?.malformed_rows && integrityResults.malformed_rows.length > 0" class="mt-4">
+                <h4 class="text-sm font-medium text-red-900 mb-2">Malformed Row Details (First 10)</h4>
+                <div class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                    <table class="min-w-full bg-white">
+                        <thead class="bg-gray-50">
+                            <tr class="border-b border-gray-100">
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Row Number</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Expected Columns</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Actual Columns</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <template x-for="row in integrityResults?.malformed_rows || []" :key="row.row">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-3 text-sm text-gray-600 whitespace-nowrap" x-text="row.row"></td>
+                                    <td class="px-6 py-3 text-sm text-gray-600 whitespace-nowrap" x-text="row.expected_columns"></td>
+                                    <td class="px-6 py-3 text-sm font-medium text-right whitespace-nowrap"
+                                        :class="row.actual_columns !== row.expected_columns ? 'text-red-700' : 'text-gray-600'"
+                                        x-text="row.actual_columns"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Patient ID Validation Results Section -->
+        <div x-show="patientIdResults" x-cloak class="bg-white shadow rounded-lg p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Patient ID Validation</h3>
+
+            <!-- Skipped Message -->
+            <div x-show="patientIdResults?.skipped" class="mb-4">
+                <div class="bg-blue-50 border border-blue-200 rounded-md px-4 py-3">
+                    <p class="text-sm text-blue-800 font-medium" x-text="patientIdResults?.reason"></p>
+                    <p class="text-xs text-blue-600 mt-1" x-text="patientIdResults?.note"></p>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div x-show="patientIdResults?.error && !patientIdResults?.skipped" class="mb-4">
+                <p class="text-sm text-yellow-800" x-text="patientIdResults?.error"></p>
+            </div>
+
+            <!-- Validation Results -->
+            <div x-show="!patientIdResults?.error && !patientIdResults?.skipped && patientIdResults?.total > 0">
+                <dl class="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-3">
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500">Total Patient IDs</dt>
+                        <dd class="mt-1 text-sm text-gray-900" x-text="patientIdResults?.total?.toLocaleString() || '0'"></dd>
+                    </div>
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500">Valid IDs</dt>
+                        <dd class="mt-1 text-sm text-green-700 font-medium" x-text="patientIdResults?.valid?.toLocaleString() || '0'"></dd>
+                    </div>
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500">Invalid IDs</dt>
+                        <dd class="mt-1 text-sm font-medium"
+                            :class="patientIdResults?.invalid > 0 ? 'text-red-700' : 'text-green-700'"
+                            x-text="patientIdResults?.invalid?.toLocaleString() || '0'"></dd>
+                    </div>
+                </dl>
+
+                <!-- Invalid IDs List -->
+                <div x-show="patientIdResults?.invalid_ids && patientIdResults.invalid_ids.length > 0" class="mt-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-sm font-medium text-red-900">
+                            Invalid Patient IDs <span class="text-xs font-normal text-red-700">(<span x-text="patientIdResults?.invalid_ids?.length"></span> total)</span>
+                        </h4>
+                        <!-- Download CSV button for large lists -->
+                        <button
+                            x-show="patientIdResults?.invalid_ids.length > 100"
+                            @click="downloadInvalidIds()"
+                            type="button"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                        >
+                            <c-icon icon="arrow-down-tray" class="h-4 w-4" family="solid" />
+                            Download CSV
+                        </button>
+                    </div>
+
+                    <!-- Show warning if list is truncated -->
+                    <div x-show="patientIdResults?.invalid_ids.length > 100" class="mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                        Showing first 100 IDs. Download CSV for complete list.
+                    </div>
+
+                    <div class="max-h-60 overflow-y-auto bg-gray-50 rounded-lg border border-gray-200 p-4">
+                        <ul class="list-disc list-inside space-y-1">
+                            <template x-for="patientId in (patientIdResults?.invalid_ids || []).slice(0, 100)" :key="patientId">
+                                <li class="text-sm text-red-800 font-mono" x-text="patientId"></li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- All Valid Message -->
+                <div x-show="patientIdResults?.invalid === 0" class="mt-4 text-sm text-green-700">
+                    ✓ All patient IDs are valid and exist in the submission's patient file
+                </div>
+            </div>
+        </div>
+
+        <!-- Validation Results Section - Use sidebar layout when complete -->
+        {% if validation.status == 'completed' and validation_run %}
+            <!-- Include the validation status sidebar layout -->
+            {% include "partials/validation_status.html" %}
+        {% else %}
+            <!-- Show simple validation results for incomplete validations -->
+            <div x-show="validationResults" x-cloak class="bg-white shadow rounded-lg p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Validation Results</h3>
+
+                <!-- CSV Integrity Errors -->
+                <div x-show="integrityResults?.malformed_row_count > 0" class="mb-4">
+                    <h4 class="text-sm font-medium text-red-900 mb-2">File Integrity Check Failed</h4>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li class="text-sm text-red-800">
+                            <span x-text="'Found ' + (integrityResults?.malformed_row_count || 0) + ' malformed row(s) with incorrect column counts'"></span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Errors -->
+                <div x-show="validationResults?.errors && validationResults.errors.length > 0" class="mb-4">
+                    <h4 class="text-sm font-medium text-red-900 mb-2">Errors</h4>
+                    <ul class="list-disc list-inside space-y-1">
+                        <template x-for="error in validationResults?.errors || []" :key="error">
+                            <li class="text-sm text-red-800" x-text="error"></li>
+                        </template>
+                    </ul>
+                </div>
+
+                <!-- Warnings -->
+                <div x-show="validationResults?.warnings && validationResults.warnings.length > 0">
+                    <h4 class="text-sm font-medium text-yellow-900 mb-2">Warnings</h4>
+                    <ul class="list-disc list-inside space-y-1">
+                        <template x-for="warning in validationResults?.warnings || []" :key="warning">
+                            <li class="text-sm text-yellow-800" x-text="warning"></li>
+                        </template>
+                    </ul>
+                </div>
+
+                <!-- No Issues -->
+                <div x-show="!integrityResults?.malformed_row_count && !validationResults?.errors?.length && !validationResults?.warnings?.length" class="text-sm text-green-700">
+                    No validation issues found
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-3">
+            <a
+                href="{% url 'precheck_validation_page' %}"
+                class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+                <c-icon icon="arrow-left" class="h-4 w-4 mr-2" />
+                Back to Precheck Validation
+            </a>
+        </div>
+    </div>
+
+    <script>
+    function diagnosticValidationStatus() {
+        return {
+            // Initial state from server
+            status: '{{ validation.status }}',
+            currentStage: '{{ validation.current_stage }}',
+            progressPercent: {{ validation.progress_percent }},
+            fileMetadata: {{ initial_file_metadata|safe }},
+            integrityResults: {{ initial_integrity_results|safe }},
+            validationResults: null,
+            patientIdResults: {{ initial_patient_id_results|safe }},
+            errorMessage: '{{ validation.error_message|escapejs }}' || null,
+            completedAt: '{{ validation.completed_at|date:"c" }}' || null,
+
+            // Polling control
+            pollInterval: null,
+            pollIntervalMs: 2000, // Poll every 2 seconds
+
+            init() {
+                // Only start polling if not already completed or failed
+                if (this.status !== 'completed' && this.status !== 'failed') {
+                    // Start polling immediately
+                    this.poll();
+
+                    // Set up interval for polling
+                    this.pollInterval = setInterval(() => {
+                        this.poll();
+                    }, this.pollIntervalMs);
+                }
+            },
+
+            async poll() {
+                try {
+                    const response = await fetch('{{ polling_url }}', {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        console.error('Polling failed:', response.status);
+                        return;
+                    }
+
+                    const data = await response.json();
+
+                    // Update state
+                    this.status = data.status;
+                    this.currentStage = data.current_stage;
+                    this.progressPercent = data.progress_percent;
+                    this.fileMetadata = data.file_metadata;
+                    this.integrityResults = data.integrity_results;
+                    this.validationResults = data.validation_results;
+                    this.patientIdResults = data.patient_id_results;
+                    this.errorMessage = data.error;
+                    this.completedAt = data.completed_at;
+
+                    // Don't stop polling if validation is running
+                    if (this.status === 'validating') {
+                        return; // Keep polling
+                    }
+
+                    // Stop polling if complete or failed
+                    if (this.status === 'completed' || this.status === 'failed') {
+                        if (this.pollInterval) {
+                            clearInterval(this.pollInterval);
+                            this.pollInterval = null;
+                        }
+
+                        // If validation is complete and has results, reload to show sidebar layout
+                        if (this.status === 'completed' && data.validation_run_completed) {
+                            window.location.reload();
+                        }
+                    }
+
+                } catch (error) {
+                    console.error('Polling error:', error);
+                }
+            },
+
+            get statusLabel() {
+                const labels = {
+                    'pending': 'Pending',
+                    'analyzing_metadata': 'Analyzing Metadata',
+                    'checking_integrity': 'Checking CSV Integrity',
+                    'converting_duckdb': 'Converting Data Format',
+                    'validating_patient_ids': 'Validating Patient IDs',
+                    'validating': 'Running Validation',
+                    'completed': 'Completed',
+                    'failed': 'Failed'
+                };
+                return labels[this.status] || this.status;
+            },
+
+            get hasErrors() {
+                // Check for malformed CSV rows
+                if (this.integrityResults?.malformed_row_count > 0) {
+                    return true;
+                }
+                // Check for validation errors
+                if (this.validationResults?.errors?.length > 0) {
+                    return true;
+                }
+                // Check for invalid patient IDs
+                if (this.patientIdResults?.invalid > 0) {
+                    return true;
+                }
+                return false;
+            },
+
+            get statusMessage() {
+                if (this.status === 'completed') {
+                    if (this.hasErrors) {
+                        return 'Validation completed with errors. See details below.';
+                    }
+                    return 'Validation completed successfully';
+                } else if (this.status === 'failed') {
+                    return 'Validation failed - see error details above';
+                } else {
+                    return this.currentStage || 'Processing...';
+                }
+            },
+
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+            },
+
+            downloadInvalidIds() {
+                if (!this.patientIdResults?.invalid_ids) return;
+
+                // Create CSV content
+                const csvContent = 'Invalid Patient ID\n' +
+                    this.patientIdResults.invalid_ids.join('\n');
+
+                // Create blob and download
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'invalid_patient_ids.csv');
+                link.style.visibility = 'hidden';
+
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        };
+    }
+    </script>
+</c-app-page>

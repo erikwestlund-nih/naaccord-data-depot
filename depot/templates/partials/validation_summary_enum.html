@@ -1,0 +1,106 @@
+{# Enum Type Summary - Normalized view with raw submissions #}
+
+<div class="px-6 pt-3 pb-6 space-y-8 divide-y divide-gray-200 max-w-full overflow-hidden">
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Summary metrics" caption="File coverage and distinct values." />
+        <c-stat-table class="mt-2" key_heading="Metric" value_heading="Value">
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Total values</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.total_rows|floatformat:0|default:"0" }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Unique raw values</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.summary.unique_raw_values|default:"0" }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Null values</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.null_count|floatformat:0 }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Empty strings</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.empty_count|floatformat:0 }}</td>
+            </tr>
+        </c-stat-table>
+    </div>
+
+    {% if variable.summary.raw_counts %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Raw distribution" caption="Observed values and frequencies." />
+        <c-stat-table class="mt-2" key_heading="Value" value_heading="Count">
+            {% for row in variable.summary.raw_counts %}
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">{{ row.value }}</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ row.count }}</td>
+            </tr>
+            {% endfor %}
+        </c-stat-table>
+    </div>
+    {% endif %}
+
+    {% if variable.summary.chart_data %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Distribution" caption="Category frequency chart." />
+        <div class="bg-white rounded-lg border border-gray-200 p-4 max-w-full overflow-hidden">
+            <div id="chart-{{ variable.id }}" class="w-full" style="height:400px;"></div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        if (typeof Plotly === 'undefined') {
+            console.error('Plotly not loaded');
+            return;
+        }
+
+        var labels = {{ variable.summary.chart_data.labels_json|safe }};
+        var values = {{ variable.summary.chart_data.values_json|safe }};
+
+        var data = [{
+            x: labels,
+            y: values,
+            type: 'bar',
+            marker: { color: 'rgb(59, 130, 246)' }
+        }];
+
+        var layout = {
+            margin: { t: 20, r: 20, b: 100, l: 60 },
+            xaxis: {
+                title: '{{ variable.display_name|escapejs }}',
+                automargin: true,
+                tickangle: -45,  // Rotate labels to prevent overlap
+                nticks: 20  // Limit tick labels for many categories
+            },
+            yaxis: { title: 'Count', rangemode: 'tozero' },
+            font: { family: 'system-ui, -apple-system, sans-serif', size: 12 }
+        };
+
+        Plotly.newPlot('chart-{{ variable.id }}', data, layout, { responsive: true, displayModeBar: false });
+    })();
+    </script>
+    {% endif %}
+
+    {% if variable.summary.definition_counts %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Definition coverage" caption="Allowed values and mapped counts." />
+        <c-stat-table class="mt-2" key_heading="Definition value" value_heading="Count">
+            {% for entry in variable.summary.definition_counts %}
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">{{ entry.label }}</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ entry.count }}</td>
+            </tr>
+            {% endfor %}
+        </c-stat-table>
+    </div>
+    {% endif %}
+
+    {% if variable.summary.unexpected_values %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Unexpected values" caption="Values not present in the definition." />
+        <ul class="text-[13px] text-gray-500 list-disc list-inside space-y-0.5">
+            {% for value, count in variable.summary.unexpected_values %}
+            <li><span class="font-mono text-gray-800">{{ value }}</span> – {{ count }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>

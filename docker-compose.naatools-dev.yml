@@ -1,0 +1,27 @@
+# Docker Compose override for active NAATools development
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.naatools-dev.yml up -d
+#
+# This mounts your local NAATools directory into containers and enables dev mode
+# so changes are reflected immediately without rebuilding or reinstalling.
+
+services:
+  services:
+    volumes:
+      # Mount local NAATools for live development
+      - /Users/erikwestlund/code/NAATools:/home/django/code/NAATools:ro
+      # Enable R dev mode
+      - ./.r_dev_mode:/app/.r_dev_mode:ro
+
+  celery:
+    volumes:
+      # Mount local NAATools for live development
+      - /Users/erikwestlund/code/NAATools:/home/django/code/NAATools:ro
+      # Enable R dev mode
+      - ./.r_dev_mode:/app/.r_dev_mode:ro
+
+  flower:
+    volumes:
+      # Mount local NAATools (flower might need it for inspection)
+      - /Users/erikwestlund/code/NAATools:/home/django/code/NAATools:ro
+      # Enable R dev mode
+      - ./.r_dev_mode:/app/.r_dev_mode:ro

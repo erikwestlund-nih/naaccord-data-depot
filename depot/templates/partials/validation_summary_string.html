@@ -1,0 +1,115 @@
+{# String Type Summary - Top 10 values with bar chart and random samples #}
+
+<div class="px-6 pt-3 pb-6 space-y-8 divide-y divide-gray-200 max-w-full overflow-hidden">
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Summary metrics" caption="Basic statistics for string values." />
+        <c-stat-table class="mt-2" key_heading="Metric" value_heading="Value">
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Total values</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.total_rows|floatformat:0|default:"0" }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Unique values</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.summary_stats.unique_count|default:"0" }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Null values</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.null_count|floatformat:0 }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Empty strings</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ variable.empty_count|floatformat:0 }}</td>
+            </tr>
+        </c-stat-table>
+    </div>
+
+    {% if variable.summary_stats.example_values %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Top 20 most common values" caption="Most frequently occurring values and their counts." />
+        <c-stat-table class="mt-2" key_heading="Value" value_heading="Count">
+            {% for example in variable.summary_stats.example_values %}
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">
+                    {% if example.value %}
+                        {{ example.value }}
+                    {% else %}
+                        <span class="text-gray-400 italic">(empty)</span>
+                    {% endif %}
+                </th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ example.count }}</td>
+            </tr>
+            {% endfor %}
+        </c-stat-table>
+    </div>
+    {% endif %}
+
+    {% if variable.summary_stats.example_values %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading
+            title="Common Values"
+            caption="Top 20 most common values." />
+        <div class="bg-white rounded-lg border border-gray-200 p-4 max-w-full">
+            <div id="chart-{{ variable.id }}" class="w-full" style="height:600px;"></div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        if (typeof Plotly === 'undefined') {
+            console.error('Plotly not loaded');
+            return;
+        }
+
+        // Extract values from example_values (includes top 10 + Other if applicable)
+        var exampleValues = {{ variable.summary_stats.example_values|safe }};
+        // Reverse to show highest count at top
+        var labels = exampleValues.map(function(item) { return String(item.value || '(empty)'); }).reverse();
+        var values = exampleValues.map(function(item) { return item.count; }).reverse();
+
+        // Calculate max value and set x-axis range to 120% to make room for labels
+        var maxValue = Math.max(...values);
+        var xAxisMax = maxValue * 1.2;
+
+        var data = [{
+            x: values,
+            y: labels,
+            type: 'bar',
+            orientation: 'h',  // Horizontal bar chart
+            marker: { color: 'rgb(59, 130, 246)' },
+            text: values.map(function(v) { return v.toLocaleString(); }),
+            textposition: 'outside',
+            hovertemplate: '%{y}: %{x:,}<extra></extra>'
+        }];
+
+        var layout = {
+            margin: { t: 30, r: 60, b: 70, l: 120 },  // Minimal margins, x-axis range handles label space
+            xaxis: {
+                title: 'Count',
+                range: [0, xAxisMax],  // Set range to 120% of max value
+                automargin: true
+            },
+            yaxis: {
+                title: '',
+                type: 'category',  // Force categorical axis
+                automargin: true,
+                tickmode: 'linear'
+            },
+            font: { family: 'system-ui, -apple-system, sans-serif', size: 12 }
+        };
+
+        Plotly.newPlot('chart-{{ variable.id }}', data, layout, { responsive: true, displayModeBar: false });
+    })();
+    </script>
+    {% endif %}
+
+    {% if variable.summary_stats.chart_data.random_samples %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Random samples" caption="30 randomly selected values (excluding top 20)." />
+        <ul class="text-[13px] text-gray-500 list-disc list-inside space-y-0.5">
+            {% for sample in variable.summary_stats.chart_data.random_samples %}
+            <li class="font-mono text-gray-800">{{ sample }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>

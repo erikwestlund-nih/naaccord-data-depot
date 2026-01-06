@@ -1,0 +1,48 @@
+<c-vars 
+    checked="false" 
+    label="" 
+    name="" 
+    value="" 
+    disabled="false"
+    size="md"
+    label_position="right"
+    checked_label=""
+    unchecked_label=""
+    x_model=""
+    x_on_change=""
+    class=""
+/>
+
+<div class="flex items-center {{ class }}" 
+     {% if x_model %}x-data{% endif %}>
+    <label class="relative inline-flex items-center {% if disabled == 'true' %}cursor-not-allowed opacity-50{% else %}cursor-pointer{% endif %}">
+        <input type="checkbox" 
+               {% if name %}name="{{ name }}"{% endif %}
+               {% if value %}value="{{ value }}"{% endif %}
+               {% if checked == "true" %}checked{% endif %}
+               {% if disabled == "true" %}disabled{% endif %}
+               {% if x_model %}x-model="{{ x_model }}"{% endif %}
+               {% if x_on_change %}@change="{{ x_on_change }}"{% endif %}
+               class="sr-only peer">
+        
+        {% if size == "sm" %}
+        <div class="w-8 h-4 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-offset-1 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-green-600"></div>
+        {% elif size == "lg" %}
+        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-offset-1 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+        {% else %}
+        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-offset-1 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
+        {% endif %}
+    </label>
+    
+    {% if label or checked_label or unchecked_label %}
+    <span class="{% if label_position == 'left' %}mr-3 order-first{% else %}ml-3{% endif %} text-sm text-gray-700">
+        {% if checked_label and unchecked_label %}
+            <span {% if x_model %}x-text="{{ x_model }} ? '{{ checked_label }}' : '{{ unchecked_label }}'"{% else %}{% if checked == "true" %}{{ checked_label }}{% else %}{{ unchecked_label }}{% endif %}{% endif %}>
+                {% if checked == "true" %}{{ checked_label }}{% else %}{{ unchecked_label }}{% endif %}
+            </span>
+        {% else %}
+            {{ label }}
+        {% endif %}
+    </span>
+    {% endif %}
+</div>

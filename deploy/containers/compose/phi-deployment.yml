@@ -1,0 +1,133 @@
+# Docker Compose for PHI-Compliant NA-ACCORD Deployment
+# Includes containerized WireGuard for encrypted PHI data transmission
+version: '3.8'
+
+networks:
+  phi_tunnel:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+  app_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+services:
+  # WireGuard container for PHI encryption
+  wireguard:
+    build:
+      context: ../wireguard
+      dockerfile: Dockerfile
+    container_name: naaccord-wireguard
+    hostname: wireguard-phi
+    networks:
+      phi_tunnel:
+        ipv4_address: 172.20.0.10
+      app_network:
+        ipv4_address: 172.21.0.10
+    ports:
+      - "51820:51820/udp"
+    volumes:
+      - wireguard_config:/etc/wireguard:ro
+      - wireguard_logs:/var/log/wireguard
+      - /dev/net:/dev/net:rw
+    environment:
+      - WG_INTERFACE=wg0
+      - WG_LOG_LEVEL=info
+      - HEALTH_CHECK_INTERVAL=30
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv6.conf.all.forwarding=1
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    restart: unless-stopped
+    healthcheck:
+      test: ["/opt/wireguard/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Django Web Application (connects to services via WireGuard)
+  web:
+    image: ghcr.io/jhbiostatcenter/naaccord/web:latest
+    container_name: naaccord-web
+    hostname: web-phi
+    networks:
+      app_network:
+        ipv4_address: 172.21.0.20
+    ports:
+      - "8000:8000"
+    environment:
+      - SERVER_ROLE=web
+      - SERVICES_URL=http://10.100.0.11:8001  # Through WireGuard tunnel
+      - DATABASE_HOST=10.100.0.11              # Through WireGuard tunnel
+      - DATABASE_PORT=3306
+      - DATABASE_NAME=naaccord
+      - DATABASE_USER=naaccord_app
+      - DATABASE_PASSWORD=${DB_APP_PASSWORD}
+      - REDIS_HOST=10.100.0.11                 # Through WireGuard tunnel
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - PHI_ENCRYPTION_ENABLED=true
+      - WIREGUARD_ENDPOINT=172.21.0.10
+    volumes:
+      - web_logs:/app/logs
+      - web_static:/app/static
+    depends_on:
+      - wireguard
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "manage.py", "check", "--deploy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Proxy (with PHI handling compliance)
+  nginx:
+    image: nginx:alpine
+    container_name: naaccord-nginx
+    hostname: nginx-phi
+    networks:
+      app_network:
+        ipv4_address: 172.21.0.30
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - nginx_config:/etc/nginx/conf.d:ro
+      - nginx_logs:/var/log/nginx
+      - web_static:/var/www/static:ro
+      - ssl_certs:/etc/ssl/certs:ro
+    environment:
+      - PHI_HEADERS_ENABLED=true
+      - LOG_PHI_ACCESS=true
+    depends_on:
+      - web
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  wireguard_config:
+    driver: local
+  wireguard_logs:
+    driver: local
+  web_logs:
+    driver: local
+  web_static:
+    driver: local
+  nginx_config:
+    driver: local
+  nginx_logs:
+    driver: local
+  ssl_certs:
+    driver: local

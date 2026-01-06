@@ -1,0 +1,43 @@
+<div {% html_attrs container_attrs %}>
+
+    {% if label %}
+        <label
+            for="{{ name }}"
+            class="block text-sm font-semibold leading-6 text-gray-900{% if error %} text-red-500{% endif %}"
+        >{{ label }}</label>
+    {% endif %}
+    <fieldset aria-label="{{ name }}" class="mt-3">
+        <div class="space-y-1">
+            {% for option in options %}
+                <div class="relative flex items-start">
+                    <div class="flex h-6 items-center">
+                        <input
+                            id="{{ name }}_{{ option.value }}"
+                            name="{{ name }}"
+                            type="radio"
+                            value="{{ option.value }}"
+                            {% if xModel %} x-model="{{ xModel }}" {% endif %}
+                            {% if value == option.value %} checked {% endif %}
+                            {% html_attrs attrs %}
+                        >
+                    </div>
+                    <div class="ml-3 text-sm/6">
+                        <label
+                            for="{{ name }}_{{ option.value }}"
+                            class="font-medium text-gray-800"
+                        >{{ option.label }}</label>
+                    </div>
+                </div>
+
+            {% endfor %}
+        </div>
+    </fieldset>
+
+    {% if error %}
+        <ul class="text-xs mt-1.5 text-red-600 list-unstyled">
+            {% for error_message in error_messages %}
+                <li>{{ error_message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</div>

@@ -1,0 +1,36 @@
+```{r}
+#| echo: false
+#| results: asis
+
+# Create summary table
+summary_table <- data.frame(
+  Metric = c(
+    "Total Rows",
+    "Total Variables",
+    "Missing Values",
+    "Missing Percentage",
+    "Unique Values",
+    "Unique Percentage"
+  ),
+  Value = c(
+    format(d$db_stats$row_count, big.mark=","),
+    as.character(length(d$definition)),
+    format(sum(d$db_stats$column_stats$nulls), big.mark=","),
+    sprintf("%.1f%%", sum(d$db_stats$column_stats$nulls) / (d$db_stats$row_count * nrow(d$db_stats$column_stats)) * 100),
+    format(sum(d$db_stats$column_stats$unique_values), big.mark=","),
+    sprintf("%.1f%%", sum(d$db_stats$column_stats$unique_values) / (d$db_stats$row_count * nrow(d$db_stats$column_stats)) * 100)
+  ),
+  stringsAsFactors = FALSE
+)
+
+# Display the table with improved styling
+print(kable(summary_table, 
+    row.names = FALSE,
+    format = "html",
+    escape = FALSE) |>
+  kable_styling(bootstrap_options = c("hover")) |>
+  column_spec(2, monospace = TRUE, extra_css = "font-size: 0.9em;"))
+
+# Add horizontal ruler
+cat("\n\n---\n\n")
+``` 

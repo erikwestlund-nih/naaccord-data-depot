@@ -1,0 +1,461 @@
+{% load depot_filters %}
+<c-app-page title="Precheck Validation">
+
+    <c-page-header
+        heading="Precheck Validation"
+        blurb="Test the new granular validation system with real-time progress updates and detailed issue reporting"
+    >
+        
+    </c-page-header>
+
+    <!-- Error Display -->
+    {% if error %}
+    <c-alert variant="error" class="mb-6">
+        <h3 class="text-sm font-medium text-red-800">Error</h3>
+        <div class="mt-2 text-sm text-red-700">{{ error }}</div>
+    </c-alert>
+    {% endif %}
+
+    <!-- Form Container with Alpine.js -->
+    <div x-data="precheckValidationForm()">
+        <!-- Error Message Display -->
+        <div x-show="errorMessage" x-cloak class="mb-6">
+            <c-alert variant="error" dismissible="true">
+                <h3 class="text-sm font-medium text-red-800">Upload Error</h3>
+                <div class="mt-2 text-sm text-red-700" x-text="errorMessage"></div>
+            </c-alert>
+        </div>
+
+        <!-- Upload Form -->
+        <form method="post" enctype="multipart/form-data" @submit.prevent="handleSubmit($event)">
+            {% csrf_token %}
+
+            <div class="bg-white shadow rounded-lg p-6 mb-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Upload Configuration</h3>
+                <!-- Cohort Selection -->
+                <div class="mb-6">
+                    <label for="cohort_id" class="block text-sm font-medium text-gray-700 mb-2">Cohort</label>
+                    <div class="grid grid-cols-1">
+                        <select
+                            name="cohort_id"
+                            id="cohort_id"
+                            x-model="cohortId"
+                            required
+                            class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-700 sm:text-sm/6"
+                        >
+                            <option value="">Select a cohort...</option>
+                            {% for cohort in form_cohorts %}
+                                <option value="{{ cohort.id }}">{{ cohort.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <c-icon icon="chevron-down" family="solid" class="pointer-events-none col-start-1 row-start-1 mr-2 size-3 self-center justify-self-end text-gray-500" />
+                    </div>
+                </div>
+
+                <!-- Data File Type Selection -->
+                <div class="mb-6">
+                    <label for="data_file_type_id" class="block text-sm font-medium text-gray-700 mb-2">Data File Type</label>
+                    <div class="grid grid-cols-1">
+                        <select
+                            name="data_file_type_id"
+                            id="data_file_type_id"
+                            x-model="dataFileTypeId"
+                            required
+                            class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-700 sm:text-sm/6"
+                        >
+                            {% for data_file_type in data_file_types %}
+                                <option value="{{ data_file_type.id }}">{{ data_file_type.label }}</option>
+                            {% endfor %}
+                        </select>
+                        <c-icon icon="chevron-down" family="solid" class="pointer-events-none col-start-1 row-start-1 mr-2 size-3 self-center justify-self-end text-gray-500" />
+                    </div>
+                </div>
+
+                <!-- Submission Selection (Optional) - Only for non-patient files -->
+                <div class="mb-6" x-show="cohortId && dataFileTypeId != '1'" x-cloak>
+                    <label for="cohort_submission_id" class="block text-sm font-medium text-gray-700 mb-2">
+                        Submission (Optional)
+                        <span class="text-gray-500 font-normal text-xs ml-1">- Validate patient IDs if selected</span>
+                    </label>
+                    <div class="grid grid-cols-1">
+                        <select
+                            name="cohort_submission_id"
+                            id="cohort_submission_id"
+                            x-model="submissionId"
+                            class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-700 sm:text-sm/6"
+                        >
+                            <option value="">No submission selected</option>
+                            <template x-for="submission in submissions" :key="submission.id">
+                                <option :value="submission.id" :selected="submission.id == submissionId" x-text="submission.label"></option>
+                            </template>
+                        </select>
+                        <c-icon icon="chevron-down" family="solid" class="pointer-events-none col-start-1 row-start-1 mr-2 size-3 self-center justify-self-end text-gray-500" />
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Patient IDs in this file will be validated against the submission's patient ID list
+                    </p>
+                </div>
+
+            </div>
+
+            <!-- File Upload Section -->
+            <div class="mb-6">
+                <input type="hidden" name="staged_token" x-model="stagedToken">
+                <input type="hidden" name="staged_filename" x-model="stagedFilename">
+                <input type="hidden" name="staged_content_type" x-model="stagedContentType">
+                <input type="hidden" name="file_size" x-model="stagedFileSize">
+                <input type="hidden" name="file_hash" x-model="stagedFileHash">
+                <input type="hidden" name="upload_method" value="upload">
+
+                <!-- Dropzone -->
+                <button type="button" x-show="!filename"
+                        @click="$refs.fileInput.click()"
+                        class="relative block w-full rounded-lg border-2 border-dashed border-gray-300 p-12 text-center hover:border-gray-400 focus:outline-2 focus:outline-offset-2 focus:outline-blue-700 cursor-pointer">
+                    <c-icon icon="cloud-arrow-up" family="solid" class="mx-auto h-12 w-12 text-gray-400" />
+                    <span class="mt-2 block text-sm font-semibold text-gray-900">Upload your data file</span>
+                    <span class="mt-1 block text-sm text-gray-500">Click to upload CSV or TXT files</span>
+                    <input type="file"
+                           x-ref="fileInput"
+                           class="hidden"
+                           accept=".csv,.txt"
+                           @change="handleFileSelect($event)">
+                </button>
+
+                <!-- File Selected Display -->
+                <div x-show="filename && !uploading && !stagedToken" x-cloak>
+                    <div class="bg-white shadow rounded-lg p-4" :class="uploaded ? 'border border-green-600 bg-green-50' : 'border border-gray-200'">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center flex-1 min-w-0">
+                                <c-icon :icon="uploaded ? 'check-circle' : 'document'"
+                                        family="solid"
+                                        :class="uploaded ? 'h-8 w-8 text-green-500 flex-shrink-0' : 'h-8 w-8 text-gray-400 flex-shrink-0'" />
+                                <div class="ml-3 min-w-0">
+                                    <p class="text-sm font-medium text-gray-900 truncate" x-text="filename"></p>
+                                    <p class="text-xs"
+                                       :class="uploaded ? 'text-green-700' : 'text-gray-500'"
+                                       x-text="uploaded ? 'File ready for validation' : formatFileSize(filesize)"></p>
+                                </div>
+                            </div>
+                            <button type="button"
+                                    @click="clearFile()"
+                                    class="ml-3 px-2 py-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all cursor-pointer"
+                                    title="Clear selection">
+                                <c-icon icon="x-mark" family="solid" class="h-3 w-3" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            <!-- Progress Bar -->
+            <div x-show="uploading" x-cloak>
+                <div class="bg-white shadow rounded-lg p-4 border border-gray-200">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-sm font-medium text-gray-700">Uploading...</span>
+                        <span class="text-sm text-gray-500" x-text="uploadProgress + '%'">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                             :style="'width: ' + uploadProgress + '%'"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="stagedToken && !uploading" x-cloak>
+                <div class="bg-white shadow rounded-lg p-4 border border-green-200">
+                    <div class="flex items-center text-sm text-green-700">
+                        <c-icon icon="check-circle" family="solid" class="h-5 w-5 text-green-500 mr-2" />
+                        File ready for submission: <span class="font-medium ml-1" x-text="stagedFilename"></span>
+                    </div>
+                </div>
+            </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="flex justify-end">
+                <button
+                    type="submit"
+                    :disabled="submitting || uploading || (!file && !stagedToken)"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <span x-show="!submitting && !uploading" class="flex items-center">
+                        <c-icon icon="play" family="solid" class="h-4 w-4 mr-2" />
+                        Start Validation
+                    </span>
+                    <span x-show="uploading" class="flex items-center">
+                        <c-icon icon="arrow-path" family="solid" class="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                    </span>
+                    <span x-show="submitting && !uploading" class="flex items-center">
+                        <c-icon icon="arrow-path" family="solid" class="h-4 w-4 mr-2 animate-spin" />
+                        Processing...
+                    </span>
+                </button>
+            </div>
+        </form>
+
+    <script>
+function precheckValidationForm() {
+    return {
+        cohortId: '{{ prefill_cohort_id|default:"" }}',
+        dataFileTypeId: '{{ prefill_data_file_type_id|default:"1" }}',
+        submissionId: {{ prefill_cohort_submission_id|default:"''" }},  // Number, not string
+        submissions: [],
+        uploadMethod: 'upload',
+        availableCohorts: {{ cohorts|safe }},
+
+        file: null,
+        filename: '',
+        filesize: 0,
+        uploading: false,
+        uploaded: false,
+        uploadProgress: 0,
+        stagedToken: null,
+        stagedFilename: '',
+        stagedContentType: 'application/octet-stream',
+        stagedFileSize: 0,
+        stagedFileHash: '',
+        submitting: false,
+        errorMessage: '',
+        processingOverlayTimeout: null,
+        processingOverlay: false,
+
+        init() {
+            // Auto-select cohort if there's only one available
+            if (!this.cohortId && this.availableCohorts && this.availableCohorts.length === 1) {
+                this.cohortId = this.availableCohorts[0].id.toString();
+            }
+
+            // Load submissions immediately if cohort is prefilled or auto-selected
+            if (this.cohortId) {
+                this.loadSubmissions(this.cohortId);
+            }
+
+            // Watch cohortId changes to load submissions
+            this.$watch('cohortId', (value) => {
+                if (value) {
+                    this.loadSubmissions(value);
+                } else {
+                    this.submissions = [];
+                    this.submissionId = '';
+                }
+            });
+        },
+
+        async loadSubmissions(cohortId) {
+            // Store the prefilled submission ID before loading
+            const prefilledSubmissionId = this.submissionId;
+
+            try {
+                const url = `/api/cohorts/${cohortId}/submissions/`;
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.submissions = data.submissions || [];
+
+                    // Re-apply prefilled submission ID if it exists in loaded submissions
+                    if (prefilledSubmissionId && this.submissions.some(s => s.id == prefilledSubmissionId)) {
+                        this.submissionId = prefilledSubmissionId;
+                    }
+                } else {
+                    console.error('Failed to load submissions, status:', response.status);
+                    this.submissions = [];
+                }
+            } catch (error) {
+                console.error('Error loading submissions:', error);
+                this.submissions = [];
+            }
+        },
+
+        handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                this.clearFile();
+                this.file = file;
+                this.filename = file.name;
+                this.filesize = file.size;
+            }
+        },
+
+        clearFile() {
+            this.file = null;
+            this.filename = '';
+            this.filesize = 0;
+            this.uploaded = false;
+            this.uploading = false;
+            this.uploadProgress = 0;
+            this.stagedToken = null;
+            this.stagedFilename = '';
+            this.stagedContentType = 'application/octet-stream';
+            this.stagedFileSize = 0;
+            this.stagedFileHash = '';
+            this.errorMessage = '';
+            if (this.$refs.fileInput) {
+                this.$refs.fileInput.value = '';
+            }
+        },
+
+        uploadFile() {
+            if (!this.file) return Promise.resolve(false);
+
+            this.uploading = true;
+            this.uploadProgress = 0;
+
+            const formData = new FormData();
+            formData.append('file', this.file);
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+            formData.append('cohort_id', this.cohortId);
+            formData.append('data_file_type_id', this.dataFileTypeId);
+            formData.append('content_type', this.file.type || 'application/octet-stream');
+
+            return new Promise((resolve) => {
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        this.uploadProgress = Math.round((event.loaded / event.total) * 100);
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data.success) {
+                            this.uploaded = true;
+                            this.uploading = false;
+                            this.stagedToken = data.token;
+                            this.stagedFilename = data.filename;
+                            this.stagedContentType = data.content_type || 'application/octet-stream';
+                            this.stagedFileSize = data.file_size || 0;
+                            this.stagedFileHash = data.file_hash || '';
+                            this.file = null;
+                            resolve(true);
+                        } else {
+                            this.errorMessage = data.error || 'Upload failed';
+                            this.clearFile();
+                            resolve(false);
+                        }
+                    } else {
+                        this.errorMessage = 'Upload failed';
+                        this.clearFile();
+                        resolve(false);
+                    }
+                };
+
+                xhr.onerror = () => {
+                    this.errorMessage = 'Upload failed';
+                    this.clearFile();
+                    resolve(false);
+                };
+
+                xhr.open('POST', '{% url "precheck_validation_upload" %}');
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');
+                xhr.send(formData);
+            });
+        },
+
+        formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        },
+
+        async handleSubmit(evt) {
+            if (this.submitting || this.uploading) return;
+
+            this.errorMessage = '';
+
+            if (!this.cohortId) {
+                this.errorMessage = 'Please select a cohort';
+                return;
+            }
+
+            if (!this.dataFileTypeId) {
+                this.errorMessage = 'Please select a data file type';
+                return;
+            }
+
+            if (!this.stagedToken) {
+                if (!this.file) {
+                    this.errorMessage = 'Please upload a file';
+                    return;
+                }
+
+                const success = await this.uploadFile();
+                if (!success) {
+                    return;
+                }
+            }
+
+            this.submitting = true;
+            this.processingOverlayTimeout = setTimeout(() => {
+                this.processingOverlay = true;
+            }, 250);
+
+            // Submit via AJAX to get validation UUID
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+            formData.append('cohort_id', this.cohortId);
+            formData.append('data_file_type_id', this.dataFileTypeId);
+            if (this.submissionId) {
+                formData.append('cohort_submission_id', this.submissionId);
+            }
+            formData.append('staged_token', this.stagedToken);
+            formData.append('staged_filename', this.stagedFilename);
+            formData.append('staged_content_type', this.stagedContentType);
+            formData.append('file_size', this.stagedFileSize);
+            formData.append('file_hash', this.stagedFileHash);
+
+            try {
+                const response = await fetch('{% url "precheck_validation_page" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Redirect to polling page with validation UUID
+                    window.location.href = `/precheck-validation/status/${data.validation_id}`;
+                } else {
+                    this.errorMessage = data.error || 'Validation start failed';
+                    this.submitting = false;
+                    if (this.processingOverlayTimeout) {
+                        clearTimeout(this.processingOverlayTimeout);
+                    }
+                    this.processingOverlay = false;
+                }
+            } catch (error) {
+                console.error('Submission error:', error);
+                this.errorMessage = 'Failed to start validation. Please try again.';
+                this.submitting = false;
+                if (this.processingOverlayTimeout) {
+                    clearTimeout(this.processingOverlayTimeout);
+                }
+                this.processingOverlay = false;
+            }
+        }
+    };
+}
+    </script>
+
+    <div
+        x-show="processingOverlay"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-sm"
+    >
+        <div class="text-center">
+            <c-icon icon="arrow-path" family="solid" class="h-10 w-10 text-blue-600 mx-auto animate-spin" />
+            <p class="mt-3 text-sm font-medium text-blue-900">Processing upload and queuing validation…</p>
+            <p class="mt-1 text-xs text-blue-700">You’ll be taken to the validation status page shortly.</p>
+        </div>
+    </div>
+</div>
+
+</c-app-page>

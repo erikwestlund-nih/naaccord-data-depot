@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2034-01-01T00:00:00Z" cacheDuration="PT604800S" entityID="https://naaccord.pequod.sh/simplesaml/saml2/idp/metadata.php">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:X509Data>
+          <ds:X509Certificate>{{ vault_mock_idp_cert | replace('\n', '') | replace('-----BEGIN CERTIFICATE-----', '') | replace('-----END CERTIFICATE-----', '') | trim }}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:KeyDescriptor use="encryption">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:X509Data>
+          <ds:X509Certificate>{{ vault_mock_idp_cert | replace('\n', '') | replace('-----BEGIN CERTIFICATE-----', '') | replace('-----END CERTIFICATE-----', '') | trim }}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://naaccord.pequod.sh/simplesaml/saml2/idp/SingleLogoutService.php"/>
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://naaccord.pequod.sh/simplesaml/saml2/idp/SSOService.php"/>
+  </md:IDPSSODescriptor>
+  <md:Organization>
+    <md:OrganizationName xml:lang="en">NA-ACCORD Mock IDP</md:OrganizationName>
+    <md:OrganizationDisplayName xml:lang="en">NA-ACCORD Staging</md:OrganizationDisplayName>
+    <md:OrganizationURL xml:lang="en">https://naaccord.pequod.sh</md:OrganizationURL>
+  </md:Organization>
+  <md:ContactPerson contactType="technical">
+    <md:GivenName>NA-ACCORD Admin</md:GivenName>
+    <md:EmailAddress>mailto:admin@naaccord.pequod.sh</md:EmailAddress>
+  </md:ContactPerson>
+</md:EntityDescriptor>

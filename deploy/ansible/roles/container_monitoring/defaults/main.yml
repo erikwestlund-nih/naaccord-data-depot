@@ -1,0 +1,25 @@
+---
+# Container Monitoring Role - Default Variables
+
+# Monitoring interval (cron schedule)
+monitoring_cron_schedule: "*/15 * * * *"  # Every 15 minutes
+
+# Restart count threshold for alerts
+restart_threshold: 3
+
+# Log retention (days)
+monitoring_log_retention_days: 30
+
+# Alert on specific conditions
+alert_on_unhealthy: true
+alert_on_high_restarts: true
+alert_on_container_down: true
+
+# Slack webhook for alerts (optional - set in vault)
+slack_webhook_url: ""
+slack_channel: "#naaccord-alerts"
+
+# Email alerts (optional)
+alert_email: ""
+smtp_server: ""
+smtp_port: 587

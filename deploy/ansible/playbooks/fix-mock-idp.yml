@@ -1,0 +1,58 @@
+---
+# Quick fix for mock-idp certificate permissions and config reload
+# Use this after updating mock-idp configuration files
+#
+# Usage (run on web server):
+#   cd /opt/naaccord/depot && git pull origin main
+#   cd deploy/ansible
+#   ansible-playbook -i inventories/staging/hosts.yml playbooks/fix-mock-idp.yml --connection local --ask-vault-pass
+
+- name: Fix mock-idp certificates and restart
+  hosts: web
+  become: yes
+  gather_facts: false
+
+  tasks:
+    - name: Set correct permissions on mock-idp cert directory
+      ansible.builtin.file:
+        path: /opt/naaccord/depot/deploy/keys/containers/mock-idp/cert
+        mode: '0755'
+        owner: naaccord
+        group: naaccord
+        state: directory
+      when: naaccord_environment == 'staging'
+
+    - name: Set correct permissions on mock-idp certificates (world-readable for container)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        mode: '0644'
+        owner: naaccord
+        group: naaccord
+      loop:
+        - /opt/naaccord/depot/deploy/keys/containers/mock-idp/cert/idp.crt
+        - /opt/naaccord/depot/deploy/keys/containers/mock-idp/cert/idp.key
+        - /opt/naaccord/depot/deploy/keys/containers/mock-idp/cert/sp-staging.crt
+        - /opt/naaccord/depot/deploy/keys/containers/mock-idp/cert/sp-staging.key
+      when: naaccord_environment == 'staging'
+
+    - name: Restart mock-idp container
+      ansible.builtin.command:
+        cmd: docker restart naaccord-mock-idp
+      register: mock_idp_restart
+      changed_when: true
+      when: naaccord_environment == 'staging'
+
+    - name: Wait for mock-idp to be healthy
+      ansible.builtin.command:
+        cmd: docker inspect --format='{% raw %}{{.State.Health.Status}}{% endraw %}' naaccord-mock-idp
+      register: mock_idp_health
+      until: mock_idp_health.stdout == "healthy"
+      retries: 10
+      delay: 3
+      changed_when: false
+      when: naaccord_environment == 'staging'
+
+    - name: Display mock-idp status
+      ansible.builtin.debug:
+        msg: "Mock-idp restarted and healthy. Config changes applied."
+      when: naaccord_environment == 'staging'

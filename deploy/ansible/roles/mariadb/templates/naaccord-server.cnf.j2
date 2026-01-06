@@ -1,0 +1,46 @@
+#
+# NA-ACCORD MariaDB Server Configuration
+# Managed by Ansible - DO NOT EDIT MANUALLY
+#
+
+[mysqld]
+# Network configuration
+bind-address = {{ mariadb_bind_address }}
+port = {{ mariadb_port }}
+{% if mariadb_skip_name_resolve %}
+skip-name-resolve
+{% endif %}
+
+# Character set and collation
+character-set-server = {{ mariadb_character_set }}
+collation-server = {{ mariadb_collation }}
+
+# Connection limits
+max_connections = {{ mariadb_max_connections }}
+
+# InnoDB configuration
+innodb_buffer_pool_size = {{ mariadb_innodb_buffer_pool_size }}
+innodb_log_file_size = {{ mariadb_innodb_log_file_size }}
+innodb_file_per_table = 1
+innodb_flush_log_at_trx_commit = 2
+innodb_flush_method = O_DIRECT
+
+# Logging
+log_error = {{ mariadb_log_error }}
+slow_query_log = {{ mariadb_slow_query_log }}
+slow_query_log_file = {{ mariadb_slow_query_log_file }}
+long_query_time = {{ mariadb_long_query_time }}
+
+# Security
+local_infile = {{ mariadb_local_infile }}
+
+# Binary logging (disabled by default, enable for replication)
+# log_bin = /var/log/mariadb/mariadb-bin
+# binlog_format = ROW
+# expire_logs_days = 7
+
+[client]
+default-character-set = {{ mariadb_character_set }}
+
+[mysql]
+default-character-set = {{ mariadb_character_set }}

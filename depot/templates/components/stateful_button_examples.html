@@ -1,0 +1,48 @@
+<!-- Stateful Button Component Usage Examples -->
+
+<!-- Basic usage with async function -->
+<c-stateful-button 
+    variant="primary"
+    onclick="return someAsyncFunction()"
+/>
+
+<!-- Custom text for all states -->
+<c-stateful-button 
+    variant="success"
+    idle_text="Submit Form"
+    saving_text="Submitting..."
+    saved_text="Form Submitted!"
+    saved_duration="1000"
+    onclick="return submitForm()"
+/>
+
+<!-- Different variants -->
+<c-stateful-button variant="primary" onclick="return save()" />
+<c-stateful-button variant="secondary" onclick="return save()" />
+<c-stateful-button variant="danger" idle_text="Delete" saving_text="Deleting..." saved_text="Deleted" onclick="return deleteItem()" />
+<c-stateful-button variant="success" onclick="return save()" />
+<c-stateful-button variant="warning" onclick="return save()" />
+
+<!-- Different sizes -->
+<c-stateful-button size="sm" onclick="return save()" />
+<c-stateful-button size="md" onclick="return save()" />
+<c-stateful-button size="lg" onclick="return save()" />
+
+<!-- With custom async logic using x_data_override -->
+<c-stateful-button 
+    variant="primary"
+    x_data_override="
+        await fetch('/api/save', {
+            method: 'POST',
+            body: JSON.stringify({data: 'example'})
+        });
+    "
+/>
+
+<!-- Usage notes:
+1. The onclick attribute should return a Promise or be an async function
+2. The button will automatically handle the state transitions
+3. If the promise rejects, the button returns to idle state
+4. The saved_duration controls how long the "Saved" state is shown (default 750ms)
+5. All text is customizable via idle_text, saving_text, and saved_text
+-->

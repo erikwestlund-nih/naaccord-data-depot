@@ -1,0 +1,60 @@
+{% for var_name, v in variables.items %}
+
+    <div class="px-4 sm:px-0">
+        <div class="flex items-center gap-x-4">
+            <h3 class="text-base/9 font-semibold font-mono text-red-900">{{ v.name }}</h3>
+            {% component "badge" color="gray" %} {{ v.type }} {% endcomponent %}
+        </div>
+    </div>
+
+    <div class="mt-8">
+        <h4 class="font-semibold text-sm/6">Variable</h4>
+
+        <dl class="divide-y divide-gray-100 mt-4">
+            {% if v.type %}
+                {% component "audit.variable_summary.row" name="Data Type" subtle=True %} {{ v.type }} {% endcomponent %}
+            {% endif %}
+            {% if v.description %}
+                {% component "audit.variable_summary.row" name="Description" subtle=True %} {{ v.description }} {% endcomponent %}
+            {% endif %}
+            {% if v.net_missing %}
+                {% component "audit.variable_summary.row" name="Empty Values" subtle=True %} {{ v.net_missing }}% {% endcomponent %}
+            {% endif %}
+        </dl>
+    </div>
+
+    {%  if v.validation %}
+        <div class="mt-8">
+            <h4 class="font-semibold text-sm/6">Validation</h4>
+
+            <div class="mt-4">
+                {% component "audit.variable_summary.validation.report" report=v.validation /%}
+            </div>
+        </div>
+
+    {% endif %}
+
+    {%  if v.summary %}
+        <div class="mt-8">
+            <h4 class="font-semibold text-sm/6">Summary</h4>
+
+            <div class="mt-4">
+                {% component "audit.variable_summary.data.report" report=v.summary /%}
+            </div>
+        </div>
+
+    {% endif %}
+
+
+    {% if v.type == "extra" %}
+        <div class="flex items-center gap-x-2">
+            {% component "icon" icon="triangle-exclamation" family="regular" c="h-4 w-4 text-amber-600" / %}
+
+            <span class="text-gray-600 text-xs-plus">This variable was included in the provided data but is not in the data dictionary.</span>
+        </div>
+    {% endif %}
+
+
+    {% component "separator" attrs:class="my-8" / %}
+
+{% endfor %}

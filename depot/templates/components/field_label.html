@@ -1,0 +1,10 @@
+<c-vars label="" help_text="" for_id="" />
+
+<label {% if for_id %}for="{{ for_id }}"{% endif %} class="text-sm font-medium text-gray-900 block">
+    {{ label }}
+</label>
+{% if help_text %}
+<p class="text-xs text-gray-500 mb-2">
+    {{ help_text }}
+</p>
+{% endif %}

@@ -1,0 +1,393 @@
+{% load depot_filters %}
+{% comment %}
+Enhanced File Upload Component
+Usage:
+  Single file mode (default):
+    {% include "components/file_upload_enhanced.html" %}
+
+  Multiple file mode:
+    {% include "components/file_upload_enhanced.html" with multiple=True %}
+
+  With custom settings:
+    {% include "components/file_upload_enhanced.html" with multiple=True accept=".csv,.txt,.pdf" accept_text="CSV, TXT, or PDF files" %}
+
+  For patient table (special single file with icon):
+    {% include "components/file_upload_enhanced.html" with is_patient=True %}
+{% endcomment %}
+
+<div x-data="fileUpload({
+    multiple: {{ multiple|default:False|lower }},
+    isPatient: {{ is_patient|default:False|lower }},
+    uploadUrl: '{{ upload_url|default:'' }}',
+    csrfToken: '{{ csrf_token }}',
+    accept: '{{ accept|default:'.csv,.txt' }}',
+    acceptText: '{{ accept_text|default:'CSV or TXT files only' }}',
+    showFileNames: {{ show_file_names|default:False|lower }}
+})" class="file-upload-enhanced">
+
+    <!-- Validation Error Display -->
+    <div x-show="validationError" x-cloak id="validation-error-display" class="mb-6 bg-red-50 border-2 border-red-200 rounded-lg p-6 shadow-sm">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <div class="ml-3 flex-1">
+                <h3 class="text-lg font-semibold text-red-800 mb-2">File Upload Failed</h3>
+
+                <p class="text-sm text-red-700 mb-4" x-text="validationError"></p>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3">
+                    <template x-if="suggestPrecheck && precheckUrl">
+                        <a :href="precheckUrl" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                            <svg class="mr-2 -ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            </svg>
+                            Run Detailed Diagnostic
+                        </a>
+                    </template>
+                    <button type="button" @click="clearValidationError()" class="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        Dismiss & Try Again
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multiple Files Container -->
+    <template x-if="multiple">
+        <div>
+            <!-- Existing Files List -->
+            <div id="files-container" class="space-y-4">
+                <template x-for="(file, index) in files" :key="file.id">
+                    <div class="upload-item mb-4 p-4 border border-gray-200 rounded-lg">
+                        <!-- File Name Field (shown when multiple files) -->
+                        <div x-show="showFileNames || files.length > 1" class="mb-3" x-cloak>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                File Name <span class="text-xs text-gray-500 font-normal">(helps identify this file)</span>
+                            </label>
+                            <input type="text"
+                                   x-model="file.name"
+                                   placeholder="File Name"
+                                   :disabled="file.uploading"
+                                   class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-blue-600 sm:text-sm/6 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                        </div>
+
+                        <!-- Comments Field -->
+                        <div class="mb-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Comments <span class="text-xs text-gray-500">(optional)</span>
+                            </label>
+                            <!-- Markdown editor container that will be initialized via JavaScript -->
+                            <div x-show="!file.uploading">
+                                <div class="file-upload-markdown-editor">
+                                    <div :id="'quill-editor-' + file.id"
+                                         class="quill-editor"
+                                         style="min-height: 100px"
+                                         x-init="$nextTick(() => initializeQuillEditor(file.id))">
+                                    </div>
+                                </div>
+                                <!-- Hidden textarea to store the actual content -->
+                                <textarea
+                                    :id="'comments-' + file.id"
+                                    x-model="file.comments"
+                                    class="hidden"></textarea>
+                            </div>
+                            <div x-show="file.uploading" class="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-500">
+                                Comments field disabled during upload...
+                            </div>
+                        </div>
+
+                        <!-- File Upload Area -->
+                        <div x-show="!file.file && !file.uploaded" class="mb-3">
+                            <label :for="'file-upload-' + file.id" class="block cursor-pointer">
+                                <div class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-gray-400 hover:bg-gray-50 transition-colors">
+                                    <c-icon icon="cloud-upload-alt" family="solid" class="mx-auto h-12 w-12 text-gray-400" />
+                                    <p class="mt-2 text-sm text-gray-600">
+                                        <span class="font-medium text-blue-600">Click to select a file</span>
+                                    </p>
+                                    <p class="text-xs text-gray-500" x-text="acceptText"></p>
+                                </div>
+                                <input :id="'file-upload-' + file.id"
+                                       type="file"
+                                       class="hidden"
+                                       :accept="accept"
+                                       @change="handleFileSelect($event, index)">
+                            </label>
+                        </div>
+
+                        <!-- File Selected State -->
+                        <div x-show="file.file && !file.uploaded && !file.uploading" x-cloak class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center flex-1 min-w-0">
+                                    <c-icon icon="document" family="solid" class="h-8 w-8 text-gray-400 flex-shrink-0" />
+                                    <div class="ml-3 min-w-0">
+                                        <p class="text-sm font-medium text-gray-900 truncate" x-text="file.filename"></p>
+                                        <p class="text-xs text-gray-500" x-text="file.fileSize"></p>
+                                    </div>
+                                </div>
+                                <button type="button"
+                                        @click="removeFile(index)"
+                                        class="ml-3 px-3 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors text-sm font-medium"
+                                        title="Remove selected file">
+                                    × Remove
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Upload Progress -->
+                        <div x-show="file.uploading" class="mt-3" x-cloak>
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm font-medium text-gray-700" x-text="file.uploadStatus">Uploading...</span>
+                                <span class="text-sm text-gray-500" x-text="file.uploadProgress + '%'">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                     :style="'width: ' + file.uploadProgress + '%'"></div>
+                            </div>
+                        </div>
+
+                        <!-- File Uploaded State -->
+                        <div x-show="file.uploaded" x-cloak class="p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div class="flex items-center">
+                                <c-icon icon="check-circle" family="solid" class="h-8 w-8 text-green-500 flex-shrink-0" />
+                                <div class="ml-3 flex-1">
+                                    <p class="text-sm font-medium text-gray-900" x-text="file.filename"></p>
+                                    <p class="text-xs text-green-700 mt-1">Upload complete</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Remove Button (for multiple files) -->
+                        <div x-show="files.length > 1" class="mt-3 flex justify-end" x-cloak>
+                            <button type="button"
+                                    @click="removeUploadField(index)"
+                                    class="text-sm text-red-600 hover:text-red-800">
+                                Remove this file
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Add Another File Button -->
+            <div class="mt-4 flex items-center justify-between">
+                <div>
+                    <button type="button"
+                            @click="addUploadField()"
+                            class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <c-icon icon="plus" family="solid" class="h-4 w-4 mr-2" />
+                        Add Another File
+                    </button>
+                    <span class="ml-3 text-sm text-gray-500" x-text="getReadyCount() + ' file(s) ready to upload'"></span>
+                </div>
+
+                <!-- Upload Button -->
+                <button type="button"
+                        @click="uploadAllFiles()"
+                        x-show="getReadyCount() > 0"
+                        x-cloak
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <c-icon icon="cloud-arrow-up" family="solid" class="h-4 w-4 mr-2" />
+                    <span>Upload&nbsp;</span><span x-text="getReadyCount()"></span>&nbsp;<span x-text="getReadyCount() > 1 ? 'Files' : 'File'"></span>
+                </button>
+            </div>
+        </div>
+    </template>
+
+    <!-- Single File Mode -->
+    <template x-if="!multiple">
+        <div>
+            <!-- Patient File Special Styling -->
+            <template x-if="isPatient">
+                <div>
+                    <!-- Dropzone -->
+                    <div x-show="!file && !uploaded" class="mb-4">
+                        <label for="single-file-upload" class="block cursor-pointer">
+                            <div class="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center hover:border-gray-400 hover:bg-gray-50 transition-colors">
+                                <c-icon icon="user-group" family="solid" class="mx-auto h-16 w-16 text-gray-400" />
+                                <p class="mt-4 text-lg font-medium text-blue-600">
+                                    Upload Patient File
+                                </p>
+                                <p class="mt-1 text-sm text-gray-600">
+                                    Click to select a file
+                                </p>
+                                <p class="text-xs text-gray-500 mt-2" x-text="acceptText"></p>
+                            </div>
+                            <input id="single-file-upload"
+                                   type="file"
+                                   class="hidden"
+                                   :accept="accept"
+                                   @change="handleSingleFileSelect($event)">
+                        </label>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Regular Single File -->
+            <template x-if="!isPatient">
+                <div>
+                    <!-- File Selection State -->
+                    <div x-show="!file && !uploaded" class="mb-3">
+                        <label for="single-file-upload"
+                               class="flex justify-center w-full px-6 py-10 border-2 border-gray-200 border-dashed rounded-lg cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            <div class="text-center">
+                                <c-icon icon="cloud-upload" family="solid" class="mx-auto h-12 w-12 text-gray-400" />
+                                <p class="mt-2 text-sm text-gray-600">
+                                    <span class="font-medium text-blue-600 hover:text-blue-500">
+                                        Click to select a file
+                                    </span>
+                                </p>
+                                <p class="text-xs text-gray-500" x-text="acceptText"></p>
+                            </div>
+                            <input id="single-file-upload"
+                                   type="file"
+                                   class="hidden"
+                                   :accept="accept"
+                                   @change="handleSingleFileSelect($event)">
+                        </label>
+                    </div>
+                </div>
+            </template>
+
+            <!-- File Selected State (Single) -->
+            <div x-show="file && !uploaded" class="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg" x-cloak>
+                <div class="flex items-center">
+                    <c-icon icon="document" family="solid" class="h-8 w-8 text-gray-400 flex-shrink-0" />
+                    <div class="ml-3 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 truncate" x-text="filename"></p>
+                        <p class="text-xs text-gray-500" x-text="fileSize"></p>
+                    </div>
+                </div>
+
+                <!-- Upload and Clear Buttons (Single) -->
+                <div x-show="!uploading" class="mt-3 flex gap-2">
+                    <button type="button"
+                            @click="uploadSingleFile()"
+                            class="flex-1 inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <c-icon icon="cloud-arrow-up" family="solid" class="h-4 w-4 mr-2" />
+                        Upload File
+                    </button>
+                    <button type="button"
+                            @click="removeSingleFile()"
+                            class="inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        <c-icon icon="x-mark" family="solid" class="h-4 w-4 mr-2" />
+                        Clear
+                    </button>
+                </div>
+
+                <!-- Upload Progress (Single) -->
+                <div x-show="uploading" class="mt-3">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-sm font-medium text-gray-700" x-text="uploadStatus">Uploading...</span>
+                        <span class="text-sm text-gray-500" x-text="uploadProgress + '%'">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                             :style="'width: ' + uploadProgress + '%'"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Uploaded State (Single) -->
+            <div x-show="uploaded" x-cloak class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div class="flex items-center">
+                    <c-icon icon="check-circle" family="solid" class="h-8 w-8 text-green-500 flex-shrink-0" />
+                    <div class="ml-3 flex-1">
+                        <p class="text-sm font-medium text-gray-900" x-text="filename"></p>
+                        <p class="text-xs text-green-700 mt-1">Upload complete</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+
+<style>
+/* File upload markdown editor styling to match main markdown editor component */
+.file-upload-markdown-editor .ql-toolbar.ql-snow {
+    border: 1px solid #d1d5db;
+    border-bottom: none;
+    border-radius: 0.375rem 0.375rem 0 0;
+    background-color: #f9fafb;
+    padding: 0.5rem;
+}
+
+.file-upload-markdown-editor .ql-container.ql-snow {
+    border: 1px solid #d1d5db;
+    border-top: 1px solid #e5e7eb;
+    border-radius: 0 0 0.375rem 0.375rem;
+    font-size: 0.875rem;
+}
+
+.file-upload-markdown-editor .ql-editor {
+    min-height: inherit;
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.file-upload-markdown-editor .ql-editor.ql-blank::before {
+    font-style: normal;
+    color: #9ca3af;
+}
+
+.file-upload-markdown-editor .ql-editor:focus {
+    outline: none;
+}
+
+.file-upload-markdown-editor .ql-snow .ql-stroke {
+    stroke: #4b5563;
+}
+
+.file-upload-markdown-editor .ql-snow .ql-fill {
+    fill: #4b5563;
+}
+
+.file-upload-markdown-editor .ql-toolbar button:hover .ql-stroke {
+    stroke: #1f2937;
+}
+
+.file-upload-markdown-editor .ql-toolbar button:hover .ql-fill {
+    fill: #1f2937;
+}
+
+.file-upload-markdown-editor .ql-toolbar button.ql-active .ql-stroke {
+    stroke: #2563eb;
+}
+
+.file-upload-markdown-editor .ql-toolbar button.ql-active .ql-fill {
+    fill: #2563eb;
+}
+
+/* Focus ring for the editor */
+.file-upload-markdown-editor {
+    border-radius: 0.375rem;
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+.file-upload-markdown-editor.focused {
+    box-shadow: 0 0 0 2px #3b82f6;
+}
+
+/* Style content headers */
+.file-upload-markdown-editor .ql-editor h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem 0;
+}
+
+.file-upload-markdown-editor .ql-editor h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0.875rem 0 0.5rem 0;
+}
+
+.file-upload-markdown-editor .ql-editor h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0.75rem 0 0.5rem 0;
+}
+</style>

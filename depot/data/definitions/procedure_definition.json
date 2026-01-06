@@ -1,0 +1,34 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "siteProcedure",
+    "type": "string",
+    "description": "Local procedure code. Typically a CPT or ICD-9/10 code. May include procedure-like clinical events such as vaccinations, radiological procedures, etc.",
+    "example": "90471, 99213, 87.44, Z23",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "procedureDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date of procedure."
+  },
+  {
+    "name": "procedureResult",
+    "type": "string",
+    "description": "Result or clinical diagnosis reported from procedure.",
+    "example": "3.9, 3.9 KPa, Normal, Abnormal"
+  },
+  {
+    "name": "source",
+    "type": "string",
+    "description": "Source of procedure data. See Section 2.9 for source definitions.",
+    "example": "P1, P2, P3",
+    "summarizers": ["bar_chart"]
+  }
+]

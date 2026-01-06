@@ -1,0 +1,394 @@
+---
+# Docker services role - Deploy application containers via docker-compose
+
+- name: Install Docker Compose plugin
+  ansible.builtin.dnf:
+    name:
+      - docker-compose-plugin
+    state: present
+  tags: ['docker', 'install']
+
+# Docker secrets are now managed by the docker_secrets role
+# which runs before this role in the playbook
+
+- name: Create Docker volumes directories
+  ansible.builtin.file:
+    path: /var/log/naaccord
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  tags: ['docker', 'storage']
+
+- name: Create Django storage directories on host (for volume mounts)
+  ansible.builtin.file:
+    path: "{{ naaccord_repo_path }}/{{ item }}"
+    state: directory
+    owner: 1000
+    group: 1000
+    mode: '0755'
+  loop:
+    - resources/storage/uploads/audit
+    - resources/storage/data
+    - resources/storage/downloads
+    - resources/storage/scratch
+    - resources/nas
+    - storage/nas
+  tags: ['docker', 'storage']
+
+- name: Create environment file for docker-compose
+  ansible.builtin.template:
+    src: docker.env.j2
+    dest: "{{ naaccord_repo_path }}/.env"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Docker services
+  tags: ['docker', 'config']
+
+- name: Create nginx configuration directory
+  ansible.builtin.file:
+    path: "{{ naaccord_repo_path }}/deploy/configs/nginx"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  tags: ['docker', 'config', 'nginx']
+
+- name: Remove incorrect nginx configs (dev configs with container names)
+  ansible.builtin.file:
+    path: "{{ naaccord_repo_path }}/deploy/configs/nginx/{{ item }}"
+    state: absent
+  loop:
+    - naaccord.conf  # Dev config - uses container names instead of tunnel IPs
+  tags: ['docker', 'config', 'nginx']
+
+- name: Create nginx HTTP context configuration
+  ansible.builtin.template:
+    src: nginx-http-context.conf.j2
+    dest: "{{ naaccord_repo_path }}/deploy/configs/nginx/00-http-context.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Docker services
+  when: "'web' in group_names"
+  tags: ['docker', 'config', 'nginx']
+
+- name: Create Cloudflare real IP configuration
+  ansible.builtin.template:
+    src: 05-real-ip-cloudflare.conf.j2
+    dest: "{{ naaccord_repo_path }}/deploy/configs/nginx/05-real-ip-cloudflare.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Docker services
+  when: "'web' in group_names"
+  tags: ['docker', 'config', 'nginx']
+
+- name: Create nginx production configuration
+  ansible.builtin.template:
+    src: nginx-prod.conf.j2
+    dest: "{{ naaccord_repo_path }}/deploy/configs/nginx/prod.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Docker services
+  when: "'web' in group_names"
+  tags: ['docker', 'config', 'nginx']
+
+- name: Log in to GitHub Container Registry
+  ansible.builtin.command:
+    cmd: docker login ghcr.io -u {{ vault_ghcr_username }} -p {{ vault_ghcr_token }}
+  no_log: true
+  tags: ['docker', 'registry']
+
+- name: Build docker compose profile flags
+  ansible.builtin.set_fact:
+    docker_profile_flags: "{% for profile in docker_compose_profiles %}--profile {{ profile }} {% endfor %}"
+  tags: ['docker', 'deploy', 'wireguard', 'fix']
+
+- name: Pull latest Docker images
+  ansible.builtin.command:
+    cmd: docker compose -f {{ docker_compose_file }} {{ docker_profile_flags }}pull
+    chdir: "{{ naaccord_repo_path }}"
+  register: docker_pull
+  changed_when: "'Pulled' in docker_pull.stderr or 'Downloaded' in docker_pull.stderr"
+  tags: ['docker', 'deploy']
+
+- name: Stop and remove old Docker containers
+  ansible.builtin.command:
+    cmd: docker compose -f {{ docker_compose_file }} {{ docker_profile_flags }} down --remove-orphans
+    chdir: "{{ naaccord_repo_path }}"
+  register: docker_down
+  changed_when: "'Removed' in docker_down.stderr or 'Stopped' in docker_down.stderr"
+  failed_when: false
+  tags: ['docker', 'deploy']
+
+- name: Get list of all naaccord containers
+  ansible.builtin.command:
+    cmd: docker ps -a --filter "name=naaccord-" --format "{% raw %}{{.Names}}{% endraw %}"
+  register: all_naaccord_containers
+  changed_when: false
+  tags: ['docker', 'deploy']
+
+- name: Debug environment and groups
+  ansible.builtin.debug:
+    msg: "Environment: {{ naaccord_environment }}, Groups: {{ group_names }}, Is Web: {{ 'web' in group_names }}, Is Staging: {{ naaccord_environment == 'staging' }}"
+  tags: ['docker', 'deploy']
+
+- name: Define expected containers for this server
+  ansible.builtin.set_fact:
+    expected_containers: >-
+      {{
+        (['naaccord-wireguard-web', 'naaccord-web', 'naaccord-nginx'] if 'web' in group_names else []) +
+        (['naaccord-mock-idp'] if (naaccord_environment == 'staging' and 'web' in group_names) else []) +
+        (['naaccord-wireguard-services', 'naaccord-services', 'naaccord-celery', 'naaccord-celery-beat', 'naaccord-redis'] if 'services' in group_names else [])
+      }}
+  tags: ['docker', 'deploy']
+
+- name: Debug expected containers
+  ansible.builtin.debug:
+    msg: "Expected containers: {{ expected_containers }}"
+  tags: ['docker', 'deploy']
+
+- name: Identify unexpected containers
+  ansible.builtin.set_fact:
+    unexpected_containers: "{{ all_naaccord_containers.stdout_lines | difference(expected_containers) }}"
+  tags: ['docker', 'deploy']
+
+- name: Remove unexpected naaccord containers
+  ansible.builtin.command:
+    cmd: docker rm -f "{{ item }}"
+  loop: "{{ unexpected_containers }}"
+  when: unexpected_containers | length > 0
+  register: removed_containers
+  tags: ['docker', 'deploy']
+
+- name: Report removed containers
+  ansible.builtin.debug:
+    msg: "Removed unexpected containers: {{ unexpected_containers }}"
+  when: unexpected_containers | length > 0
+  tags: ['docker', 'deploy']
+
+- name: Start Docker services
+  ansible.builtin.command:
+    cmd: docker compose -f {{ docker_compose_file }} {{ docker_profile_flags }} up -d
+    chdir: "{{ naaccord_repo_path }}"
+  register: docker_up
+  changed_when: "'Started' in docker_up.stderr or 'Created' in docker_up.stderr"
+  tags: ['docker', 'deploy']
+
+- name: Wait for services container to be ready
+  ansible.builtin.command:
+    cmd: docker inspect --format='{% raw %}{{.State.Status}}{% endraw %}' naaccord-services
+  register: services_status
+  until: services_status.stdout == "running"
+  retries: 10
+  delay: 3
+  changed_when: false
+  when: "'services' in group_names"
+  tags: ['docker', 'deploy', 'migrations']
+
+- name: Run Django database migrations
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py migrate
+  register: django_migrate
+  changed_when: "'Applying' in django_migrate.stdout"
+  when: "'services' in group_names"
+  tags: ['docker', 'deploy', 'migrations']
+
+- name: Run django_celery_beat migrations
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py migrate django_celery_beat
+  register: celery_beat_migrate
+  changed_when: "'Applying' in celery_beat_migrate.stdout"
+  when: "'services' in group_names"
+  tags: ['docker', 'deploy', 'migrations']
+
+- name: Check if database is empty (no cohorts)
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py shell -c "from depot.models import Cohort; print(Cohort.objects.count())"
+  register: cohort_count
+  changed_when: false
+  failed_when: false
+  when: "'services' in group_names"
+  tags: ['docker', 'deploy', 'seeding']
+
+- name: Seed initial data (environment-specific cohorts)
+  ansible.builtin.command:
+    cmd: docker exec -e NAACCORD_ENVIRONMENT={{ naaccord_environment }} naaccord-services python manage.py seed_init
+  register: seed_init_result
+  changed_when: true
+  when:
+    - "'services' in group_names"
+    - cohort_count.stdout | default('0') | int == 0
+  tags: ['docker', 'deploy', 'seeding']
+
+- name: Display seeding result
+  ansible.builtin.debug:
+    msg: "Seeded initial data with environment-specific cohorts ({{ naaccord_environment }})"
+  when:
+    - "'services' in group_names"
+    - cohort_count.stdout | default('0') | int == 0
+  tags: ['docker', 'deploy', 'seeding']
+
+- name: Setup Django permission groups
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py setup_permission_groups
+  register: setup_groups_result
+  changed_when: "'Created' in setup_groups_result.stdout or 'Updated' in setup_groups_result.stdout"
+  when:
+    - "'services' in group_names"
+    - cohort_count.stdout | default('0') | int == 0
+  tags: ['docker', 'deploy', 'seeding']
+
+- name: Load environment-specific users (test users for staging, real users for production)
+  ansible.builtin.command:
+    cmd: docker exec -e NAACCORD_ENVIRONMENT={{ naaccord_environment }} naaccord-services python manage.py load_test_users
+  register: load_users_result
+  changed_when: true
+  when:
+    - "'services' in group_names"
+    - cohort_count.stdout | default('0') | int == 0
+  tags: ['docker', 'deploy', 'seeding', 'users']
+
+- name: Check if users exist but need group assignments
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py shell -c "from depot.models import User; from django.contrib.auth.models import Group; print(User.objects.filter(is_active=True, groups__isnull=True).exists())"
+  register: users_need_groups
+  changed_when: false
+  failed_when: false
+  when: "'services' in group_names"
+  tags: ['docker', 'deploy', 'seeding', 'users']
+
+- name: Assign users to permission groups
+  ansible.builtin.command:
+    cmd: docker exec naaccord-services python manage.py assign_test_users_to_groups
+  register: assign_groups_result
+  changed_when: true
+  when:
+    - "'services' in group_names"
+    - users_need_groups.stdout | default('False') == 'True' or cohort_count.stdout | default('0') | int == 0
+  tags: ['docker', 'deploy', 'seeding', 'users']
+
+- name: Display user loading result
+  ansible.builtin.debug:
+    msg: "Loaded {{ naaccord_environment }} users with cohort memberships"
+  when:
+    - "'services' in group_names"
+    - cohort_count.stdout | default('0') | int == 0
+  tags: ['docker', 'deploy', 'seeding', 'users']
+
+- name: Copy static files to Django static volume
+  ansible.builtin.command:
+    cmd: docker cp {{ naaccord_repo_path }}/static/. naaccord-web:/app/staticfiles/
+  register: static_copy
+  changed_when: true
+  when: "'web' in group_names"
+  tags: ['docker', 'deploy', 'static']
+
+- name: Fix static files ownership for nginx (from web container as root - nginx mount is read-only)
+  ansible.builtin.command:
+    cmd: docker exec --user root naaccord-web chown -R 101:101 /app/staticfiles/
+  register: static_perms
+  changed_when: true
+  when: "'web' in group_names"
+  tags: ['docker', 'deploy', 'static']
+
+- name: Wait for Redis to be healthy
+  ansible.builtin.command:
+    cmd: docker inspect --format='{% raw %}{{.State.Health.Status}}{% endraw %}' naaccord-redis
+  register: redis_health
+  until: redis_health.stdout == "healthy"
+  retries: 10
+  delay: 5
+  changed_when: false
+  when: "'services' in group_names"
+  tags: ['docker', 'verify']
+
+- name: Display running containers
+  ansible.builtin.command: docker compose -f {{ docker_compose_file }} {{ docker_profile_flags }}ps
+  args:
+    chdir: "{{ naaccord_repo_path }}"
+  register: compose_ps
+  changed_when: false
+  tags: ['docker', 'verify']
+
+- name: Verify only expected containers are running
+  ansible.builtin.command:
+    cmd: docker ps --filter "name=naaccord-" --format "{% raw %}{{.Names}}{% endraw %}"
+  register: running_containers
+  changed_when: false
+  tags: ['docker', 'verify']
+
+- name: Check for unexpected running containers
+  ansible.builtin.fail:
+    msg: "Unexpected containers running: {{ running_containers.stdout_lines | difference(expected_containers) }}"
+  when: (running_containers.stdout_lines | difference(expected_containers)) | length > 0
+  tags: ['docker', 'verify']
+
+- name: Show container status
+  ansible.builtin.debug:
+    msg: "{{ compose_ps.stdout }}"
+  tags: ['docker', 'verify']
+
+- name: Verify Docker networks exist (services)
+  ansible.builtin.command:
+    cmd: docker network inspect {{ item }}
+  loop:
+    - naaccord_internal
+    - naaccord_wireguard
+  register: network_inspect
+  changed_when: false
+  when: "'services' in group_names"
+  tags: ['docker', 'verify', 'network']
+
+- name: Verify Docker networks exist (web)
+  ansible.builtin.command:
+    cmd: docker network inspect {{ item }}
+  loop:
+    - naaccord_public
+  register: network_inspect_web
+  changed_when: false
+  when: "'web' in group_names"
+  tags: ['docker', 'verify', 'network']
+
+- name: Verify WireGuard network subnet
+  ansible.builtin.command:
+    cmd: >
+      docker network inspect naaccord_wireguard
+      --format='{% raw %}{{range .IPAM.Config}}{{.Subnet}}{{end}}{% endraw %}'
+  register: wg_network_subnet
+  changed_when: false
+  failed_when: wg_network_subnet.stdout != "10.101.0.0/24"
+  when: "'services' in group_names"
+  tags: ['docker', 'verify', 'network']
+
+- name: Verify container network attachments
+  ansible.builtin.command:
+    cmd: >
+      docker inspect {{ item.container }}
+      --format='{% raw %}{{range $net, $conf := .NetworkSettings.Networks}}{{$net}} {{end}}{% endraw %}'
+  loop:
+    - { container: "naaccord-web", expected: "service:wireguard-web", server: "web" }
+    - { container: "naaccord-services", expected: "naaccord_wireguard", server: "services" }
+    - { container: "naaccord-redis", expected: "naaccord_wireguard", server: "services" }
+  register: network_attachment
+  changed_when: false
+  when: item.server in group_names
+  tags: ['docker', 'verify', 'network']
+
+- name: Verify WireGuard port is exposed (services server)
+  ansible.builtin.shell: |
+    docker port naaccord-wireguard-services 51820 && echo "EXPOSED"
+  register: wg_port_check
+  changed_when: false
+  failed_when: false
+  when: "'services' in group_names"
+  tags: ['docker', 'verify', 'wireguard']
+
+- name: Display WireGuard port status
+  ansible.builtin.debug:
+    msg: "WireGuard port 51820 status: {{ 'EXPOSED' if 'EXPOSED' in wg_port_check.stdout else 'NOT EXPOSED - check docker-compose.yml' }}"
+  when: "'services' in group_names"
+  tags: ['docker', 'verify', 'wireguard']

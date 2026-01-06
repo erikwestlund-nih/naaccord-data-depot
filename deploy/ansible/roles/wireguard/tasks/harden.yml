@@ -1,0 +1,136 @@
+---
+# WireGuard Hardening - Policy Routing and Firewall Restrictions
+
+- name: Create scripts directory
+  ansible.builtin.file:
+    path: /opt/naaccord/scripts
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: "'web' in group_names"
+  tags: ['wireguard', 'hardening', 'setup']
+
+- name: Create custom routing table for WireGuard
+  ansible.builtin.lineinfile:
+    path: /etc/iproute2/rt_tables
+    line: "100 wireguard"
+    create: yes
+    owner: root
+    group: root
+    mode: '0644'
+  when: "'web' in group_names"
+  tags: ['wireguard', 'hardening', 'routing']
+
+- name: Configure policy routing for services server traffic
+  ansible.builtin.copy:
+    content: |
+      #!/bin/bash
+      # Force all traffic to services server (10.100.0.11) through WireGuard tunnel
+      # Prevents accidental bypass of encrypted tunnel
+
+      # Add policy routing rule
+      ip rule add to 10.100.0.11 lookup wireguard priority 100 || true
+
+      # Add route through Docker bridge (which connects to WireGuard container)
+      ip route add 10.100.0.11 dev docker0 table wireguard || true
+    dest: /opt/naaccord/scripts/wireguard-policy-routing.sh
+    owner: root
+    group: root
+    mode: '0755'
+  when: "'web' in group_names"
+  tags: ['wireguard', 'hardening', 'routing']
+
+- name: Create systemd service for WireGuard policy routing
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=WireGuard Policy Routing for NA-ACCORD
+      After=docker.service
+      Requires=docker.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/naaccord/scripts/wireguard-policy-routing.sh
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/wireguard-policy-routing.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: "'web' in group_names"
+  tags: ['wireguard', 'hardening', 'routing']
+
+- name: Enable and start WireGuard policy routing service
+  ansible.builtin.systemd:
+    name: wireguard-policy-routing
+    enabled: yes
+    state: started
+    daemon_reload: yes
+  when: "'web' in group_names"
+  tags: ['wireguard', 'hardening', 'routing']
+
+- name: Configure strict firewall rules for WireGuard tunnel
+  ansible.builtin.copy:
+    content: |
+      #!/bin/bash
+      # WireGuard tunnel firewall hardening
+      # Only allow specific ports through tunnel
+
+      # This script is run inside WireGuard container
+      # Install nftables if not present
+      apk add --no-cache nftables 2>/dev/null || true
+
+      # Create filter table
+      nft add table inet filter 2>/dev/null || true
+
+      # Create forward chain with default drop policy
+      nft add chain inet filter forward '{ type filter hook forward priority 0; policy drop; }' 2>/dev/null || true
+      nft flush chain inet filter forward 2>/dev/null || true
+
+      # Allow only required services
+      nft add rule inet filter forward ip daddr 10.100.0.11 tcp dport 3306 accept comment '"MariaDB"'
+      nft add rule inet filter forward ip daddr 10.100.0.11 tcp dport 6379 accept comment '"Redis"'
+      nft add rule inet filter forward ip daddr 10.100.0.11 tcp dport 8001 accept comment '"Django Services API"'
+
+      # Allow established/related connections back
+      nft add rule inet filter forward ct state established,related accept
+
+      # Log dropped packets (rate limited)
+      nft add rule inet filter forward limit rate 10/minute log prefix '"WireGuard-DROP: "' level info
+
+      echo "WireGuard firewall rules applied successfully"
+    dest: /opt/naaccord/scripts/wireguard-firewall-rules.sh
+    owner: root
+    group: root
+    mode: '0755'
+  when: "'web' in group_names"
+  tags: ['wireguard', 'hardening', 'firewall']
+
+- name: Display WireGuard hardening status
+  ansible.builtin.debug:
+    msg: |
+      WireGuard Hardening Applied:
+      - Policy routing configured (traffic to 10.100.0.11 must use tunnel)
+      - Firewall script created for container (restrict to ports 3306, 6379, 8001)
+      - To apply firewall rules, add script to WireGuard container startup
+  when: "'web' in group_names"
+  tags: ['wireguard', 'hardening']
+
+- name: Verify policy routing rules
+  ansible.builtin.command:
+    cmd: ip rule list
+  register: ip_rules
+  changed_when: false
+  when: "'web' in group_names"
+  tags: ['wireguard', 'verify']
+
+- name: Display policy routing rules
+  ansible.builtin.debug:
+    msg: "{{ ip_rules.stdout_lines }}"
+  when:
+    - "'web' in group_names"
+    - ip_rules is defined
+  tags: ['wireguard', 'verify']

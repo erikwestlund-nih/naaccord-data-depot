@@ -1,0 +1,103 @@
+---
+# System configuration
+- name: Set timezone to America/New_York
+  community.general.timezone:
+    name: America/New_York
+  tags:
+    - base
+    - system
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+  when: inventory_hostname is defined
+  tags:
+    - base
+    - system
+
+- name: Update /etc/hosts with hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.0\.1\s+localhost'
+    line: "127.0.0.1   localhost {{ inventory_hostname }}"
+    state: present
+  when: inventory_hostname is defined
+  tags:
+    - base
+    - system
+
+- name: Disable SELinux (set to permissive)
+  ansible.posix.selinux:
+    policy: targeted
+    state: permissive
+  tags:
+    - base
+    - system
+
+- name: Load br_netfilter module
+  community.general.modprobe:
+    name: br_netfilter
+    state: present
+  tags:
+    - base
+    - system
+
+- name: Ensure br_netfilter loads at boot
+  ansible.builtin.lineinfile:
+    path: /etc/modules-load.d/br_netfilter.conf
+    line: br_netfilter
+    create: yes
+    mode: '0644'
+  tags:
+    - base
+    - system
+
+- name: Configure kernel parameters for Docker
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: yes
+    reload: yes
+  loop:
+    - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+    - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+    - { name: 'net.ipv4.ip_forward', value: '1' }
+    - { name: 'vm.max_map_count', value: '262144' }
+  tags:
+    - base
+    - system
+
+- name: Create NA-ACCORD directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: naaccord
+    group: naaccord
+  loop:
+    - /opt/naaccord
+    - /var/log/naaccord
+    - /etc/naaccord
+  when: base_create_naaccord_user | default(true)
+  tags:
+    - base
+    - system
+
+- name: Configure logrotate for NA-ACCORD
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/naaccord
+    content: |
+      /var/log/naaccord/*.log {
+          daily
+          rotate 14
+          compress
+          delaycompress
+          notifempty
+          create 0640 naaccord naaccord
+          sharedscripts
+      }
+    mode: '0644'
+  tags:
+    - base
+    - system

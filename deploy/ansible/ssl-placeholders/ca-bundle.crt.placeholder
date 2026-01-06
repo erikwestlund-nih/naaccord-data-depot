@@ -1,0 +1,55 @@
+# =============================================================================
+# SSL CA Bundle (Certificate Chain) Placeholder
+# =============================================================================
+#
+# This is a PLACEHOLDER file showing where the CA bundle should be installed.
+# DO NOT commit actual certificates to git!
+#
+# Installation Path (Production):
+#   /etc/ssl/certs/naaccord/ca-bundle.crt
+#
+# CA Bundle Requirements:
+#   - Contains: Intermediate CA certificate(s) + Root CA certificate
+#   - Format: PEM encoded, multiple certificates concatenated
+#   - Order: Intermediate CA first, then Root CA
+#   - Must create valid chain from server cert to trusted root
+#
+# How to Install:
+#   1. Obtain CA bundle from JHU IT
+#   2. Copy to production server:
+#      sudo cp ca-bundle.crt /etc/ssl/certs/naaccord/ca-bundle.crt
+#   3. Set permissions:
+#      sudo chmod 644 /etc/ssl/certs/naaccord/ca-bundle.crt
+#   4. Verify chain:
+#      openssl verify -CAfile /etc/ssl/certs/naaccord/ca-bundle.crt \
+#        /etc/ssl/certs/naaccord/server.crt
+#      # Should output: /etc/ssl/certs/naaccord/server.crt: OK
+#
+# Example CA Bundle Format (Multiple Certificates):
+#
+# -----BEGIN CERTIFICATE-----
+# MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
+# ... (Intermediate CA certificate data) ...
+# -----END CERTIFICATE-----
+# -----BEGIN CERTIFICATE-----
+# MIIEkjCCA3qgAwIBAgIQCgFBQgAAAVOFc2oLheynCDANBgkqhkiG9w0BAQsFADA/
+# ... (Root CA certificate data) ...
+# -----END CERTIFICATE-----
+#
+# Common Issues:
+#   - Wrong order: Place intermediate CA before root CA
+#   - Missing intermediate: Must include all intermediates in chain
+#   - Expired CA: Ensure CA certificates are current
+#
+# Testing the Chain:
+#   # Test locally
+#   openssl s_client -connect localhost:443 -servername mrpznaaccordweb01.hosts.jhmi.edu
+#
+#   # Test externally
+#   openssl s_client -connect mrpznaaccordweb01.hosts.jhmi.edu:443
+#
+#   # Check for chain issues
+#   # Look for: "Verify return code: 0 (ok)"
+#
+# See README.md for complete installation instructions
+# =============================================================================

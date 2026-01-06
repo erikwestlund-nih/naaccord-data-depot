@@ -1,0 +1,138 @@
+---
+# Container Monitoring Role - Install automated container health monitoring
+
+- name: Ensure monitoring log directory exists
+  ansible.builtin.file:
+    path: /var/log/naaccord
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  tags: ['monitoring', 'setup']
+
+- name: Create monitoring script from playbook
+  ansible.builtin.copy:
+    src: "{{ naaccord_repo_path }}/deploy/ansible/playbooks/monitor-container-health.yml"
+    dest: /usr/local/bin/naaccord-monitor-containers.yml
+    mode: '0755'
+    remote_src: yes
+  tags: ['monitoring', 'setup']
+
+- name: Create monitoring wrapper script
+  ansible.builtin.copy:
+    content: |
+      #!/bin/bash
+      # NA-ACCORD Container Monitoring Wrapper
+      # Runs Ansible playbook for container health monitoring
+
+      set -euo pipefail
+
+      INVENTORY="{{ naaccord_repo_path }}/deploy/ansible/inventories/{{ naaccord_environment }}/hosts.yml"
+      PLAYBOOK="/usr/local/bin/naaccord-monitor-containers.yml"
+      LOG_FILE="/var/log/naaccord/monitoring-$(date +%Y%m%d-%H%M%S).log"
+      ALERT_LOG="/var/log/naaccord/alerts.log"
+
+      # Run monitoring playbook
+      ansible-playbook \
+        -i "$INVENTORY" \
+        "$PLAYBOOK" \
+        --connection local \
+        -e restart_threshold={{ restart_threshold }} \
+        > "$LOG_FILE" 2>&1
+
+      # Check for alerts in output
+      if grep -q "⚠️\|🔴\|CRITICAL\|WARNING" "$LOG_FILE"; then
+        echo "$(date -Iseconds) - Alert detected in container monitoring" >> "$ALERT_LOG"
+        cat "$LOG_FILE" >> "$ALERT_LOG"
+
+        {% if slack_webhook_url %}
+        # Send Slack alert
+        curl -X POST "{{ slack_webhook_url }}" \
+          -H 'Content-Type: application/json' \
+          -d @- <<EOF
+      {
+        "channel": "{{ slack_channel }}",
+        "username": "NA-ACCORD Monitor",
+        "icon_emoji": ":warning:",
+        "text": "Container Health Alert - {{ naaccord_environment }}",
+        "attachments": [{
+          "color": "danger",
+          "title": "Container Issue Detected",
+          "text": "Check /var/log/naaccord/alerts.log for details",
+          "fields": [
+            {
+              "title": "Environment",
+              "value": "{{ naaccord_environment }}",
+              "short": true
+            },
+            {
+              "title": "Server",
+              "value": "$(hostname)",
+              "short": true
+            }
+          ]
+        }]
+      }
+      EOF
+        {% endif %}
+      fi
+
+      # Clean up old logs
+      find /var/log/naaccord -name "monitoring-*.log" -mtime +{{ monitoring_log_retention_days }} -delete
+    dest: /usr/local/bin/naaccord-monitor-containers.sh
+    mode: '0755'
+  tags: ['monitoring', 'setup']
+
+- name: Install monitoring cron job
+  ansible.builtin.cron:
+    name: "NA-ACCORD container health monitoring"
+    minute: "*/15"
+    hour: "*"
+    day: "*"
+    month: "*"
+    weekday: "*"
+    job: "/usr/local/bin/naaccord-monitor-containers.sh"
+    user: root
+    state: present
+  tags: ['monitoring', 'cron']
+
+- name: Create manual monitoring aliases
+  ansible.builtin.blockinfile:
+    path: /etc/profile.d/naaccord-aliases.sh
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - Container Monitoring"
+    block: |
+      # Container monitoring commands
+      alias namonitor='/usr/local/bin/naaccord-monitor-containers.sh'
+      alias namonitor-logs='tail -f /var/log/naaccord/alerts.log'
+      alias namonitor-status='tail -100 /var/log/naaccord/monitoring-*.log | tail -50'
+    create: yes
+    mode: '0644'
+  tags: ['monitoring', 'aliases']
+
+- name: Display monitoring setup summary
+  ansible.builtin.debug:
+    msg: |
+      ✅ Container monitoring installed successfully!
+
+      Monitoring Configuration:
+      - Cron Schedule: Every 15 minutes
+      - Restart Threshold: {{ restart_threshold }} restarts
+      - Log Retention: {{ monitoring_log_retention_days }} days
+      - Alerts: {% if slack_webhook_url %}Slack enabled{% else %}Disabled (no webhook){% endif %}
+
+      Available Commands:
+      - namonitor           : Run monitoring check now
+      - namonitor-logs      : View alert log (tail -f)
+      - namonitor-status    : View recent monitoring status
+      - nalogs              : View all container logs
+
+      Log Files:
+      - Monitoring: /var/log/naaccord/monitoring-*.log
+      - Alerts: /var/log/naaccord/alerts.log
+
+      Manual Monitoring:
+      ansible-playbook \
+        -i inventories/{{ naaccord_environment }}/hosts.yml \
+        playbooks/monitor-container-health.yml \
+        --connection local
+  tags: ['monitoring']

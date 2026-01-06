@@ -1,0 +1,28 @@
+<c-vars name label value errors placeholder required type autocomplete class />
+
+{% with value=value|stringformat:"s" %}
+    {% if label %}
+        <c-label :name="name" :label="label" :errors="errors" />
+    {% endif %}
+
+    <div class="mt-2">
+        <div class="relative rounded-md">
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <c-icon icon="magnifying-glass" family="regular" class="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+                id="{{ name }}"
+                name="{{ name }}"
+                type="{{ type|default:'text' }}"
+                placeholder="{{ placeholder }}"
+                autocomplete="{{ autocomplete }}"
+                value="{{ value|default_if_none:"" }}"
+                {% if required %}required{% endif %}
+                class="block w-full rounded-md bg-white py-1.5 pl-10 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-blue-600 sm:text-sm/6 {{ class }}"
+                {{ attrs }}
+            >
+        </div>
+    </div>
+
+    <c-error :errors="errors" :name="name" class="mt-1.5" />
+{% endwith %}

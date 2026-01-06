@@ -1,0 +1,101 @@
+{# Boolean Type Summary - Shows counts of true/false values #}
+
+<div class="px-6 pt-3 pb-6 space-y-8 divide-y divide-gray-200 max-w-full overflow-hidden">
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Summary statistics" caption="Counts across boolean responses." class="mb-1" />
+        <c-stat-table class="mt-2 mb-6" key_heading="Value" value_heading="Count">
+            {% if variable.summary.definition_counts %}
+                {% for entry in variable.summary.definition_counts %}
+                <tr>
+                    <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">
+                        {{ entry.label|default:"(blank)" }}
+                    </th>
+                    <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">
+                        {{ entry.count }}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="2" class="px-2.5 py-2 text-sm text-gray-500 text-center">
+                        No boolean values observed.
+                    </td>
+                </tr>
+            {% endif %}
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">Null values</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">
+                    {{ variable.null_count|default:"0" }}
+                </td>
+            </tr>
+        </c-stat-table>
+
+        {% if variable.summary.unexpected_values %}
+        <div class="text-[13px] text-gray-500">
+            <p class="font-medium text-gray-700 mb-1">Unexpected values</p>
+            <ul class="list-disc list-inside space-y-0.5">
+                {% for value, count in variable.summary.unexpected_values %}
+                <li><span class="font-mono text-gray-800">{{ value|default:"(blank)" }}</span> – {{ count }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+    </div>
+
+    {% if variable.summary.raw_counts %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Raw values" caption="Literal submissions before normalization." class="mb-1" />
+        <c-stat-table class="mt-2" key_heading="Value" value_heading="Count">
+            {% for row in variable.summary.raw_counts %}
+            <tr>
+                <th scope="row" class="px-2.5 py-1 text-left font-medium text-gray-700">{{ row.value }}</th>
+                <td class="px-2.5 py-1.5 text-right text-gray-900 font-mono font-normal">{{ row.count }}</td>
+            </tr>
+            {% endfor %}
+        </c-stat-table>
+    </div>
+    {% endif %}
+
+    {% if variable.summary.chart_data %}
+    <div class="space-y-6 pb-8">
+        <c-section-heading title="Distribution" caption="True vs false frequency." class="mb-1" />
+        <div class="bg-white rounded-lg border border-gray-200 p-4 max-w-full overflow-hidden">
+            <div id="chart-{{ variable.id }}" class="w-full" style="height:360px;"></div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        if (typeof Plotly === 'undefined') {
+            console.error('Plotly not loaded');
+            return;
+        }
+
+        var labels = {{ variable.summary.chart_data.labels_json|safe }};
+        var values = {{ variable.summary.chart_data.values_json|safe }};
+        var palette = ['#2563EB', '#1D4ED8', '#0F766E'];
+        var colors = labels.map(function(_, idx) { return palette[idx % palette.length]; });
+
+        var data = [{
+            x: labels,
+            y: values,
+            type: 'bar',
+            marker: { color: colors }
+        }];
+
+        var layout = {
+            margin: { t: 20, r: 20, b: 80, l: 60 },
+            xaxis: { title: '{{ variable.display_name|escapejs }}', automargin: true },
+            yaxis: { title: 'Count', rangemode: 'tozero' },
+            font: {
+                family: 'system-ui, -apple-system, sans-serif',
+                size: 12
+            }
+        };
+
+        Plotly.newPlot('chart-{{ variable.id }}', data, layout, { responsive: true, displayModeBar: false });
+    })();
+    </script>
+    {% endif %}
+</div>

@@ -1,0 +1,24 @@
+---
+# Setup Container Monitoring Playbook
+#
+# Installs automated container health monitoring with cron jobs and alerting
+#
+# Usage:
+#   # Install on production web server
+#   ansible-playbook -i inventories/production/hosts.yml playbooks/setup-container-monitoring.yml --connection local --ask-vault-pass --limit web
+#
+#   # Install on production services server
+#   ansible-playbook -i inventories/production/hosts.yml playbooks/setup-container-monitoring.yml --connection local --ask-vault-pass --limit services
+#
+#   # Install on both servers
+#   ansible-playbook -i inventories/production/hosts.yml playbooks/setup-container-monitoring.yml --connection local --ask-vault-pass
+
+- name: Setup container health monitoring
+  hosts: all
+  become: yes
+  vars:
+    naaccord_repo_path: /opt/naaccord/depot
+
+  roles:
+    - role: container_monitoring
+      tags: ['monitoring']

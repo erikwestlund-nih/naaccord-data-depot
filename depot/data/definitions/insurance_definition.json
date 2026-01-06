@@ -1,0 +1,28 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "insurance",
+    "type": "string",
+    "description": "Type of insurance. Valid codes: 1=Medicaid (or Medi-Cal for CA), 2=Medicare, 3=Medicaid+Medicare, 4=Other US public (non-Medicaid/Medicare), 5=Veteran's Administration Medical Benefits, 6=Canadian publicly-funded provincial health care plan, 7=Private or commercial health insurance, 8=Self pay/none (including Ryan White/ADAP), 9=Worker's Comp, 99=Unknown. You may submit either the numeric or text value.",
+    "example": "Medicare, Private, 1, 2, 7, Medicaid",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "insuranceStartDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Start date of insurance coverage or the date the insurance information was collected."
+  },
+  {
+    "name": "insuranceStopDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Stop date of insurance coverage. Leave blank if coverage is ongoing.",
+    "value_optional": true
+  }
+]

@@ -1,0 +1,32 @@
+<c-vars variant="primary" size="md" type="button" href="" onclick="" name="" value="" />
+
+{% if href %}
+    <a href="{{ href }}" 
+       class="inline-flex items-center justify-center cursor-pointer font-semibold shadow-xs transition-colors
+              {% if size == 'xs' %}px-2 py-1 text-xs rounded-sm{% elif size == 'sm' %}px-2.5 py-1.5 text-sm rounded-md{% elif size == 'lg' %}px-3.5 py-2.5 text-sm rounded-md{% else %}px-3 py-2 text-sm rounded-md{% endif %}
+              {% if variant == 'primary' %}bg-blue-700 text-white hover:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700
+              {% elif variant == 'secondary' %}bg-gray-600 text-white hover:bg-gray-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600
+              {% elif variant == 'danger' %}bg-red-600 text-white hover:bg-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600
+              {% elif variant == 'success' %}bg-green-600 text-white hover:bg-green-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600
+              {% elif variant == 'warning' %}bg-yellow-600 text-white hover:bg-yellow-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-600
+              {% elif variant == 'ghost' %}bg-transparent text-gray-700 hover:bg-gray-100 border border-gray-300 shadow-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600
+              {% else %}bg-gray-600 text-white hover:bg-gray-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600{% endif %}">
+        {{ slot }}
+    </a>
+{% else %}
+    <button type="{{ type }}"
+            {% if onclick %}onclick="{{ onclick }}"{% endif %}
+            {% if name %}name="{{ name }}"{% endif %}
+            {% if value %}value="{{ value }}"{% endif %}
+            class="inline-flex items-center justify-center cursor-pointer font-semibold shadow-xs transition-colors
+                   {% if size == 'xs' %}px-2 py-1 text-xs rounded-sm{% elif size == 'sm' %}px-2.5 py-1.5 text-sm rounded-md{% elif size == 'lg' %}px-3.5 py-2.5 text-sm rounded-md{% else %}px-3 py-2 text-sm rounded-md{% endif %}
+                   {% if variant == 'primary' %}bg-blue-700 text-white hover:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700
+                   {% elif variant == 'secondary' %}bg-gray-600 text-white hover:bg-gray-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600
+                   {% elif variant == 'danger' %}bg-red-600 text-white hover:bg-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600
+                   {% elif variant == 'success' %}bg-green-600 text-white hover:bg-green-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600
+                   {% elif variant == 'warning' %}bg-yellow-600 text-white hover:bg-yellow-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-600
+                   {% elif variant == 'ghost' %}bg-transparent text-gray-700 hover:bg-gray-100 border border-gray-300 shadow-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600
+                   {% else %}bg-gray-600 text-white hover:bg-gray-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600{% endif %}">
+        {{ slot }}
+    </button>
+{% endif %}

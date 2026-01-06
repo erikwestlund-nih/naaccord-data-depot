@@ -1,0 +1,34 @@
+---
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                                                              ║
+# ║   🚫🚫🚫 THIS PLAYBOOK IS PERMANENTLY DISABLED 🚫🚫🚫                        ║
+# ║                                                                              ║
+# ║   NAS resets are NO LONGER ALLOWED on production systems.                    ║
+# ║   The NAS contains real PHI research data that cannot be recreated.          ║
+# ║                                                                              ║
+# ║   If you ABSOLUTELY need to reset the NAS (e.g., disaster recovery),         ║
+# ║   you must manually edit this file to re-enable it.                          ║
+# ║                                                                              ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+- name: NAS RESET IS DISABLED
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: STOP - NAS reset is permanently disabled
+      ansible.builtin.fail:
+        msg: |
+
+          ╔══════════════════════════════════════════════════════════════════════════════╗
+          ║                                                                              ║
+          ║   🚫 NAS RESET IS PERMANENTLY DISABLED 🚫                                    ║
+          ║                                                                              ║
+          ║   This playbook has been disabled to protect production PHI data.            ║
+          ║                                                                              ║
+          ║   The NAS contains irreplaceable research data submissions.                  ║
+          ║                                                                              ║
+          ║   If you need to re-enable this playbook for disaster recovery,              ║
+          ║   you must manually edit:                                                    ║
+          ║     deploy/ansible/playbooks/nas-reset.yml                                   ║
+          ║                                                                              ║
+          ╚══════════════════════════════════════════════════════════════════════════════╝

@@ -1,0 +1,121 @@
+<c-app-page title="{{ cohort.name }}">
+
+    <c-page-header 
+        heading="{{ cohort.name }}" 
+        blurb="Detailed view of this research cohort, including participant information, data submissions, and validation reports." 
+    />
+    
+    <!-- Cohort Info Card -->
+    <c-card title="Cohort Information" class="mb-8">
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <dl class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Type</dt>
+                        <dd class="text-sm text-gray-900">{{ cohort.get_type_display|default:cohort.type }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Status</dt>
+                        <dd class="text-sm text-gray-900">{{ cohort.get_status_display|default:cohort.status }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Members</dt>
+                        <dd class="text-sm text-gray-900">{{ member_count }}</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </c-card>
+
+    <!-- Members Section -->
+    <c-card title="Cohort Members" variant="table" no_border="true" class="mb-8">
+        {% if members %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-300">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Name</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Email</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Role</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                    {% for member in members %}
+                    <tr>
+                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                            {{ member.name }}
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ member.email }}</td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ member.groups }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500 px-4 py-6">No members assigned to this cohort.</p>
+        {% endif %}
+    </c-card>
+
+    <!-- Recent Submissions Section -->
+    <c-card title="Recent Submissions" compact="true" class="flex flex-col">
+        {% if recent_submissions %}
+        <div class="flex-1">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Protocol Year</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Started By</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Created</th>
+                            <th class="relative py-3.5 pl-3 pr-4 sm:pr-6"><span class="sr-only">View</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        {% for item in recent_submissions %}
+                        <tr>
+                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                                {{ item.submission.protocol_year.name }}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium
+                                    {% if item.submission.status == 'signed_off' %}bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20
+                                    {% elif item.submission.status == 'in_progress' %}bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20
+                                    {% else %}bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/10{% endif %}">
+                                    {{ item.submission.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                {{ item.submission.started_by.get_full_name|default:item.submission.started_by.username }}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                {{ item.submission.created_at|date:"M d, Y" }}
+                            </td>
+                            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                <a href="{% url 'submission_detail' item.submission.id %}" class="text-blue-700 hover:text-blue-600 font-medium">
+                                    {% if item.can_manage %}Manage{% else %}View{% endif %}<span class="sr-only">, {{ item.submission.protocol_year.name }}</span>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="flex-1">
+            <p class="text-sm text-gray-500">No submissions yet for this cohort.</p>
+        </div>
+        {% endif %}
+        {% if can_create_submission %}
+        <div class="mt-6">
+            <a href="{% url 'submission_create_for_cohort' cohort.id %}"
+               class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                New Submission
+            </a>
+        </div>
+        {% endif %}
+    </c-card>
+
+</c-app-page>

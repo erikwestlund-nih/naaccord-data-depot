@@ -1,0 +1,15 @@
+---
+- name: Configure NA-ACCORD Web Server
+  hosts: web
+  become: yes
+
+  roles:
+    - base
+    - firewall
+    - hosts_management
+    - ssl
+    - docker_secrets
+    - logrotate
+    - docker_services
+    - saml  # Must run after docker_services so mock-idp container is running
+    - wireguard

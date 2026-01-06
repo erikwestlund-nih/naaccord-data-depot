@@ -1,0 +1,230 @@
+---
+title: "NA-ACCORD Data Depot Partner Guide"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: right
+    toc-title: "Contents"
+    toc-depth: 3
+    number-sections: false
+    code-tools: false
+    anchor-sections: true
+    embed-resources: true
+    self-contained: true
+---
+
+## Testing Phase
+
+The data depot is currently in a testing phase. User feedback is welcome, particularly regarding features that are confusing or do not work as expected. Please report issues or suggestions to the NA-ACCORD team.
+
+## Logging In
+
+### Prerequisites
+
+During the testing and security audit phase, you must be connected to the Johns Hopkins VPN before accessing the data depot.
+
+### Access the Data Depot
+
+1. Navigate to [https://na-accord-depot.publichealth.jhu.edu/](https://na-accord-depot.publichealth.jhu.edu/)
+2. You will be automatically redirected to a single sign-on (SSO) screen
+3. Enter your credentials:
+   - **Hopkins users**: Your JHED (e.g., jdoe1@jh.edu)
+   - **External users**: The email address you provided to NA-ACCORD
+
+If your SSO email does not match our records or you have trouble logging in, contact the NA-ACCORD team.
+
+### Dashboard Overview
+
+After logging in, you will see the dashboard with a sidebar menu and main content area.
+
+![Dashboard](images/01-dashboard.png)
+
+The left sidebar displays:
+
+- Upload Precheck
+- File Submissions
+- Cohorts
+- Dashboard
+- Your assigned cohorts
+
+## Upload Precheck
+
+Upload Precheck allows you to validate data files before formal submission. This generates a quality report identifying issues that can be corrected.
+
+### Running a Precheck
+
+1. Click "Upload Precheck" in the sidebar
+2. Select your cohort from the dropdown
+3. Select the data file type (Patient Record, Laboratory, Diagnosis, etc.)
+4. Upload your CSV file
+
+![Upload Precheck Form](images/02-upload-precheck.png)
+
+The file will be securely transferred to the servers for analysis. Processing time varies based on file size.
+
+### Viewing Precheck Reports
+
+After processing completes, you can view or download the validation report. The report compares your submitted file against official NA-ACCORD data submission guidelines and identifies anomalies and issues.
+
+![Precheck Report](images/03-precheck-report.png)
+
+Precheck reports are currently in active development. Feedback on how to make them more useful is appreciated.
+
+## Creating a Submission
+
+### Starting a New Submission
+
+1. Click "File Submissions" in the sidebar
+2. If you have no submissions, click the empty area to start a new submission
+
+![Empty Submissions View](images/04-empty-submissions.png)
+
+3. Select a protocol year and cohort for your submission
+
+![Create Submission Dialog](images/05-create-submission.png)
+
+If you manage only a single cohort, it will be pre-selected.
+
+### Submission Overview
+
+After creating a submission, you will see the submission overview page showing all required data tables and their upload status.
+
+![Submission Overview](images/06-submission-overview.png)
+
+## Uploading the Patient Record
+
+### Patient File Requirement
+
+The Patient Record table must be uploaded first. Other data files are validated against the patient IDs in this file, so completing the patient upload is required before proceeding with other tables.
+
+### Upload Process
+
+1. Click "Start" next to "Patient Record table"
+
+![Patient Upload Page](images/07-patient-upload-empty.png)
+
+2. Click to select or drag and drop your CSV file
+
+![Patient File Selected](images/08-patient-file-selected.png)
+
+3. After the file is uploaded, the system will process and validate it
+4. You can add comments about the entire patient submission in the "Review Comments" section
+
+![Mark Complete Section](images/09-patient-mark-complete.png)
+
+### File Information Panel
+
+The data file panel displays information about your uploaded file including:
+
+- File name
+- Version number
+- File size
+- Upload timestamp
+- Processing status
+- Patient ID validation results
+
+![Uploaded File Details](images/10-uploaded-file-details.png)
+
+You can view or download the validation report from this panel.
+
+### Adding File Attachments
+
+You can upload supporting documents related to this specific file. Click the attachment upload section and provide:
+
+- A descriptive name for the attachment
+- Optional comments explaining the attachment
+- The file to upload
+
+![Upload Attachment Modal](images/11-upload-attachment-modal.png)
+
+After uploading, the attachment will appear in the file attachments list.
+
+![Attachment Uploaded](images/12-attachment-uploaded.png)
+
+Attachments are optional but useful for documenting data quality issues or providing additional context.
+
+### Marking the Table Complete
+
+After reviewing the validation report and adding any necessary comments or attachments, mark the table as complete using the toggle at the top of the page.
+
+![Table Marked Complete](images/13-table-marked-complete.png)
+
+## Uploading Additional Tables
+
+### Returning to Submission Overview
+
+Navigate back to the submission using the breadcrumbs (click "Protocol Year 2025") or select "File Submissions" from the sidebar.
+
+The submission overview will show updated progress.
+
+![Submission Progress Updated](images/14-submission-progress-updated.png)
+
+### Upload Additional Tables
+
+Click "Start" for the next table (Diagnosis, Laboratory, etc.) and repeat the upload process.
+
+For non-patient files, you can split uploads into multiple files if needed. All files must have the same column headers.
+
+### Patient ID Validation
+
+Non-patient files are validated against the patient IDs in your patient file. The validation panel shows:
+
+- Total patient IDs in the patient file
+- How many are covered by the current upload
+- How many uploaded IDs are valid (match patient file)
+- How many uploaded IDs are invalid (do not match patient file)
+
+![Patient ID Validation](images/15-patient-id-validation.png)
+
+If patient IDs are missing or invalid, you can download a CSV report detailing the issues.
+
+![CSV Validation Report](images/16-csv-validation-report.png)
+
+### Handling Missing Tables
+
+If a data table is not available, you can skip it and explain the reason in the final submission comments. Missing tables do not block submission if documented.
+
+## Finalizing the Submission
+
+### Submission-Level Attachments
+
+You can attach documents relevant to the entire submission (not specific to one table). This is useful for:
+
+- Data collection protocols
+- IRB documentation
+- Submission-wide explanations
+
+![Submission Attachments](images/17-submission-attachments.png)
+
+### Final Sign-off
+
+When all available tables are complete, provide final sign-off:
+
+1. Add optional comments explaining any issues, missing tables, or other relevant information
+2. Check the acknowledgment box confirming that all data tables have been reviewed and validation warnings have been addressed or documented
+3. Click "Sign Off Entire Submission"
+
+![Final Sign-off](images/18-final-signoff.png)
+
+Once signed off, you will not be able to edit the submission without contacting the NA-ACCORD team.
+
+### Submission Complete
+
+After sign-off, the submission status changes to "Signed Off" and displays your completion confirmation.
+
+![Submission Complete](images/19-submission-complete.png)
+
+## Getting Help
+
+Contact the NA-ACCORD team if you:
+
+- Experience technical issues
+- Have questions about data validation
+- Need to modify a signed-off submission
+- Require assistance with the data depot
+
+---
+
+**Document Version**: 1.0
+**Last Updated**: October 15, 2025

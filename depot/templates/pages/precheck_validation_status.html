@@ -1,0 +1,189 @@
+{% load static %}
+<c-app-page title="Validation Status">
+    {# Load Plotly.js for charts #}
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+
+    <c-page-header
+        heading="Validation Status"
+        blurb="{{ validation_run.data_file_type.label }} validation - {{ validation_run.created_at|date:'F j, Y g:i A' }}"
+    >
+    </c-page-header>
+
+    <!-- Back Link -->
+    <div class="mt-6 mb-6">
+        <a href="{% url 'precheck_validation' %}" class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+            <c-icon icon="arrow-left" class="h-4 w-4 mr-2" />
+            Back to Precheck Validation
+        </a>
+    </div>
+
+    <!-- Initial loading overlay (visible before Alpine mounts) -->
+    <div id="validation-status-initial-overlay" class="fixed inset-0 z-40 flex items-center justify-center bg-white">
+        <div class="text-center">
+            <div class="mx-auto mb-4 h-12 w-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin"></div>
+            <p class="text-sm font-medium text-blue-900">Preparing validation status…</p>
+            <p class="mt-1 text-xs text-blue-700">Hang tight while we load your results.</p>
+        </div>
+    </div>
+
+    <!-- Validation Status - Auto-refreshing with Alpine.js -->
+    <div x-data="validationStatus()" x-init="init()" x-cloak class="relative mt-6">
+        <!-- Loading State (during initial auto-refresh) -->
+        <div x-show="variableCount === 0 && !isComplete()" x-cloak class="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+            <div class="mx-auto h-10 w-10 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-3"></div>
+            <p class="font-medium text-blue-900">Starting validation run...</p>
+            <p class="text-sm text-blue-700 mt-1">We’ll bring you the first results the moment they’re ready.</p>
+        </div>
+
+        {% if validation_run.status != 'completed' and validation_run.status != 'failed' and validation_run.status != 'partial' %}
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4" x-show="!isComplete() && variableCount > 0" x-cloak>
+            <div class="flex items-start gap-3">
+                <div class="h-5 w-5 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin mt-0.5 flex-shrink-0"></div>
+                <div class="text-sm text-blue-800">
+                    <p class="font-medium">Processing is still underway.</p>
+                    <p class="mt-1 text-xs text-blue-700">We’ll refresh automatically once new results arrive. Refresh now if you want to check progress immediately.</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div id="validation-status" x-show="isReady && (variableCount > 0 || isComplete())" class="mt-6">
+            {% include "partials/validation_status.html" %}
+        </div>
+
+        <!-- Actions -->
+        <div class="mt-8 flex flex-wrap items-center gap-3 justify-end">
+            <a
+                href="{% url 'precheck_validation' %}"
+                class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+                <c-icon icon="arrow-left" class="h-4 w-4 mr-2" />
+                Back to Precheck Validation
+            </a>
+
+            <button
+                x-show="status === 'completed'"
+                type="button"
+                class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                onclick="window.print()"
+            >
+                <c-icon icon="printer" class="h-4 w-4 mr-2" family="solid" />
+                Print Report
+            </button>
+        </div>
+    </div>
+
+    {{ initial_variable_statuses|json_script:"initial-variable-statuses" }}
+    {{ summary|json_script:"validation-summary" }}
+
+    <script>
+    function validationStatus() {
+        const initialScript = document.getElementById('initial-variable-statuses');
+        const summaryScript = document.getElementById('validation-summary');
+        const initialStatuses = initialScript ? JSON.parse(initialScript.textContent) : [];
+        const summarySnapshot = summaryScript ? JSON.parse(summaryScript.textContent) : {};
+        if (initialScript) initialScript.remove();
+        if (summaryScript) summaryScript.remove();
+
+        return {
+            loading: false,
+            isReady: false,
+            status: '{{ validation_run.status }}',
+            variableCount: {{ validation_variables|length }},
+            initialStatuses,
+            summarySnapshot,
+            checkInterval: null,
+
+            init() {
+                const overlay = document.getElementById('validation-status-initial-overlay');
+                if (overlay) {
+                    overlay.classList.add('transition-opacity', 'duration-300', 'opacity-0');
+                    setTimeout(() => overlay.remove(), 320);
+                }
+
+                this.isReady = true;
+
+                // If validation is still running, poll for updates and auto-refresh when results change
+                if (!this.isComplete()) {
+                    this.startChecking();
+                }
+            },
+
+            isComplete() {
+                return ['completed', 'failed', 'partial'].includes(this.status);
+            },
+
+            startChecking() {
+                // Check every 5 seconds for new data
+                this.checkInterval = setInterval(() => {
+                    this.checkForUpdates();
+                }, 5000);
+            },
+
+            stopChecking() {
+                if (this.checkInterval) {
+                    clearInterval(this.checkInterval);
+                    this.checkInterval = null;
+                }
+            },
+
+            async checkForUpdates() {
+                try {
+                    const response = await fetch('{% url "precheck_validation_status_json" validation_run.id %}', { cache: 'no-store' });
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const data = await response.json();
+
+                    // If new results detected, just auto-reload immediately
+                    if (this.shouldRefresh(data)) {
+                        window.location.replace(window.location.href);
+                    }
+                } catch (error) {
+                    console.error('Error checking status:', error);
+                }
+            },
+
+            shouldRefresh(data) {
+                if (!data || !Array.isArray(data.variables)) {
+                    return false;
+                }
+
+                const hasCompletedVariable = data.variables.some(v => ['completed', 'failed'].includes(v.status));
+                const newVariableAppeared = data.variables.length > this.initialStatuses.length;
+                const statusReachedTerminal = ['completed', 'failed', 'partial'].includes(data.status) && data.status !== this.status;
+
+                // Auto-refresh on any of these conditions
+                if (hasCompletedVariable || statusReachedTerminal || newVariableAppeared) {
+                    return true;
+                }
+
+                // Check if any variable status changed to completed/failed
+                for (let i = 0; i < data.variables.length; i += 1) {
+                    if (['completed', 'failed'].includes(data.variables[i].status) && data.variables[i].status !== this.initialStatuses[i]) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        };
+    }
+    </script>
+
+    <style>
+    /* Smooth scrolling */
+    html {
+        scroll-behavior: smooth;
+    }
+
+    /* Print styles */
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+    }
+    </style>
+
+</c-app-page>

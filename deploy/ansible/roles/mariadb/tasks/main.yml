@@ -1,0 +1,228 @@
+---
+# MariaDB role - Install and configure encrypted MariaDB database
+
+- name: Install MariaDB packages
+  ansible.builtin.dnf:
+    name: "{{ mariadb_packages }}"
+    state: present
+  tags: ['mariadb', 'database', 'install']
+
+- name: Create MariaDB log directory
+  ansible.builtin.file:
+    path: /var/log/mariadb
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0755'
+  tags: ['mariadb', 'database']
+
+- name: Create MariaDB encryption directory
+  ansible.builtin.file:
+    path: "{{ mariadb_encryption_dir }}"
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0700'
+  when: mariadb_encryption_enabled
+  tags: ['mariadb', 'database', 'encryption']
+
+- name: Check if encryption key exists
+  ansible.builtin.stat:
+    path: "{{ mariadb_encryption_key_file }}"
+  register: encryption_key_stat
+  when: mariadb_encryption_enabled
+  tags: ['mariadb', 'database', 'encryption']
+
+- name: Generate encryption key
+  ansible.builtin.shell: |
+    echo "{{ mariadb_encryption_key_id }};$(openssl rand -hex 32)" > {{ mariadb_encryption_key_file }}
+    chown mysql:mysql {{ mariadb_encryption_key_file }}
+    chmod 0600 {{ mariadb_encryption_key_file }}
+  when:
+    - mariadb_encryption_enabled
+    - not encryption_key_stat.stat.exists
+  no_log: true
+  tags: ['mariadb', 'database', 'encryption']
+
+- name: Deploy MariaDB server configuration
+  ansible.builtin.template:
+    src: naaccord-server.cnf.j2
+    dest: /etc/my.cnf.d/naaccord-server.cnf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart MariaDB
+  tags: ['mariadb', 'database', 'config']
+
+- name: Deploy MariaDB encryption configuration
+  ansible.builtin.template:
+    src: naaccord-encryption.cnf.j2
+    dest: /etc/my.cnf.d/naaccord-encryption.cnf
+    owner: root
+    group: root
+    mode: '0644'
+  when: mariadb_encryption_enabled
+  notify: Restart MariaDB
+  tags: ['mariadb', 'database', 'encryption', 'config']
+
+- name: Start and enable MariaDB service
+  ansible.builtin.systemd:
+    name: "{{ mariadb_service }}"
+    state: "{{ mariadb_state }}"
+    enabled: "{{ mariadb_enabled }}"
+  tags: ['mariadb', 'database']
+
+- name: Check if MariaDB root password is set
+  ansible.builtin.command: mysql -u root -e "SELECT 1"
+  register: mariadb_root_check
+  changed_when: false
+  failed_when: false
+  tags: ['mariadb', 'database', 'security']
+
+- name: Set MariaDB root password
+  ansible.builtin.shell: |
+    mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mariadb_root_password }}'; FLUSH PRIVILEGES;"
+  when: mariadb_root_check.rc == 0
+  no_log: true
+  tags: ['mariadb', 'database', 'security']
+
+- name: Remove anonymous users
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "DELETE FROM mysql.user WHERE User=''; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security']
+
+- name: Remove test database
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "DROP DATABASE IF EXISTS test;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security']
+
+- name: Create NA-ACCORD database
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE DATABASE IF NOT EXISTS {{ mariadb_database }} CHARACTER SET {{ mariadb_character_set }} COLLATE {{ mariadb_collation }};"
+  no_log: true
+  tags: ['mariadb', 'database']
+
+- name: Detect Docker internal network subnet
+  ansible.builtin.shell: |
+    docker network inspect naaccord_internal --format '{% raw %}{{range .IPAM.Config}}{{.Subnet}}{{end}}{% endraw %}'
+  register: docker_subnet_result
+  changed_when: false
+  failed_when: false
+  tags: ['mariadb', 'database', 'docker']
+
+- name: Set Docker subnet variable
+  ansible.builtin.set_fact:
+    docker_subnet: "{{ docker_subnet_result.stdout if docker_subnet_result.stdout else '172.18.0.0/16' }}"
+  tags: ['mariadb', 'database', 'docker']
+
+- name: Extract Docker network pattern for MariaDB grants (e.g., 172.18.%)
+  ansible.builtin.set_fact:
+    docker_network_pattern: "{{ docker_subnet.split('.')[0] }}.{{ docker_subnet.split('.')[1] }}.%"
+  tags: ['mariadb', 'database', 'docker']
+
+- name: Create NA-ACCORD application user from localhost
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE USER IF NOT EXISTS '{{ mariadb_app_user }}'@'localhost' IDENTIFIED BY '{{ mariadb_app_password }}'; GRANT ALL PRIVILEGES ON {{ mariadb_database }}.* TO '{{ mariadb_app_user }}'@'localhost'; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security']
+
+- name: Create NA-ACCORD application user from Docker subnet
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE USER IF NOT EXISTS '{{ mariadb_app_user }}'@'{{ docker_network_pattern }}' IDENTIFIED BY '{{ mariadb_app_password }}'; GRANT ALL PRIVILEGES ON {{ mariadb_database }}.* TO '{{ mariadb_app_user }}'@'{{ docker_network_pattern }}'; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security', 'docker']
+
+- name: Create NA-ACCORD application user from Docker default network (172.20.%)
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE USER IF NOT EXISTS '{{ mariadb_app_user }}'@'172.20.%' IDENTIFIED BY '{{ mariadb_app_password }}'; GRANT ALL PRIVILEGES ON {{ mariadb_database }}.* TO '{{ mariadb_app_user }}'@'172.20.%'; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security', 'docker']
+
+- name: Create NA-ACCORD application user from naaccord_internal network (172.19.%)
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE USER IF NOT EXISTS '{{ mariadb_app_user }}'@'172.19.%' IDENTIFIED BY '{{ mariadb_app_password }}'; GRANT ALL PRIVILEGES ON {{ mariadb_database }}.* TO '{{ mariadb_app_user }}'@'172.19.%'; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security', 'docker']
+
+- name: Create NA-ACCORD application user from WireGuard tunnel subnet (10.100.0.%)
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE USER IF NOT EXISTS '{{ mariadb_app_user }}'@'10.100.0.%' IDENTIFIED BY '{{ mariadb_app_password }}'; GRANT ALL PRIVILEGES ON {{ mariadb_database }}.* TO '{{ mariadb_app_user }}'@'10.100.0.%'; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security', 'wireguard']
+
+- name: Create NA-ACCORD application user from WireGuard Docker bridge network (10.101.0.%)
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE USER IF NOT EXISTS '{{ mariadb_app_user }}'@'10.101.0.%' IDENTIFIED BY '{{ mariadb_app_password }}'; GRANT ALL PRIVILEGES ON {{ mariadb_database }}.* TO '{{ mariadb_app_user }}'@'10.101.0.%'; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security', 'wireguard', 'docker']
+
+- name: Verify WireGuard subnet grant
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "SELECT User, Host FROM mysql.user WHERE User='{{ mariadb_app_user }}' AND Host='10.100.0.%';"
+  register: wireguard_grant_verify
+  changed_when: false
+  no_log: true
+  tags: ['mariadb', 'database', 'security', 'wireguard']
+
+- name: Display WireGuard grant verification
+  ansible.builtin.debug:
+    msg: "WireGuard subnet grant verified: {{ wireguard_grant_verify.stdout_lines | default(['Not found']) }}"
+  tags: ['mariadb', 'database', 'wireguard']
+
+- name: Display Docker network configuration
+  ansible.builtin.debug:
+    msg: "MariaDB grants configured for Docker subnet: {{ docker_network_pattern }}, WireGuard tunnel: 10.100.0.%, WireGuard bridge: 10.101.0.%"
+  tags: ['mariadb', 'database', 'docker']
+
+# Admin user for debugging/analysis via TablePlus
+- name: Create NA-ACCORD admin user from localhost
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE USER IF NOT EXISTS '{{ mariadb_admin_user }}'@'localhost' IDENTIFIED BY '{{ mariadb_admin_password }}'; GRANT SELECT ON {{ mariadb_database }}.* TO '{{ mariadb_admin_user }}'@'localhost'; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security', 'admin']
+
+- name: Create NA-ACCORD admin user from 127.0.0.1 (for SSH tunnels)
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE USER IF NOT EXISTS '{{ mariadb_admin_user }}'@'127.0.0.1' IDENTIFIED BY '{{ mariadb_admin_password }}'; GRANT SELECT ON {{ mariadb_database }}.* TO '{{ mariadb_admin_user }}'@'127.0.0.1'; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security', 'admin', 'ssh']
+
+- name: Create NA-ACCORD admin user from Docker subnet
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE USER IF NOT EXISTS '{{ mariadb_admin_user }}'@'{{ docker_network_pattern }}' IDENTIFIED BY '{{ mariadb_admin_password }}'; GRANT SELECT ON {{ mariadb_database }}.* TO '{{ mariadb_admin_user }}'@'{{ docker_network_pattern }}'; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security', 'admin', 'docker']
+
+- name: Create NA-ACCORD admin user from WireGuard tunnel subnet (10.100.0.%)
+  ansible.builtin.shell: |
+    mysql -u root --password="{{ mariadb_root_password }}" -e "CREATE USER IF NOT EXISTS '{{ mariadb_admin_user }}'@'10.100.0.%' IDENTIFIED BY '{{ mariadb_admin_password }}'; GRANT SELECT ON {{ mariadb_database }}.* TO '{{ mariadb_admin_user }}'@'10.100.0.%'; FLUSH PRIVILEGES;"
+  no_log: true
+  tags: ['mariadb', 'database', 'security', 'admin', 'wireguard']
+
+- name: Create MariaDB backup directory
+  ansible.builtin.file:
+    path: "{{ mariadb_backup_dir }}"
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0700'
+  tags: ['mariadb', 'database', 'backup']
+
+- name: Verify encryption is enabled
+  ansible.builtin.shell: |
+    mysql -u root -p'{{ mariadb_root_password }}' -e "SHOW VARIABLES LIKE 'innodb_encrypt%';"
+  register: encryption_verify
+  changed_when: false
+  when: mariadb_encryption_enabled
+  no_log: true
+  tags: ['mariadb', 'database', 'encryption', 'verify']
+
+- name: Display encryption status
+  ansible.builtin.debug:
+    msg: "MariaDB encryption configured and enabled"
+  when:
+    - mariadb_encryption_enabled
+    - encryption_verify is defined
+  tags: ['mariadb', 'database', 'encryption', 'verify']

@@ -1,0 +1,22 @@
+---
+- name: Seed NA-ACCORD Database
+  hosts: all
+  become: yes
+  run_once: true  # Only run on first host to avoid double-seeding shared database
+
+  tasks:
+    - name: Include database seeding role
+      ansible.builtin.include_role:
+        name: db_seed
+
+    - name: Show next steps
+      ansible.builtin.debug:
+        msg:
+          - "✓ Database seeding complete!"
+          - ""
+          - "{{ 'Test users have been created. See depot/fixtures/test_users/ for credentials.' if naaccord_environment == 'staging' else 'Production users have been loaded from resources/data/seed/' }}"
+          - ""
+          - "You can now:"
+          - "  1. Access the application via SAML"
+          - "  2. Verify users can log in"
+          - "  3. Check cohort memberships are correct"

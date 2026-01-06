@@ -1,0 +1,51 @@
+```{r}
+#| echo: false
+#| results: asis
+
+# Helper function to format file size
+format_file_size <- function(bytes) {
+  if (is.null(bytes)) return("Unknown")
+  units <- c("B", "KB", "MB", "GB")
+  i <- 1
+  while (bytes >= 1024 && i < length(units)) {
+    bytes <- bytes / 1024
+    i <- i + 1
+  }
+  sprintf("%.2f %s", bytes, units[i])
+}
+
+cat("## Definition Summary\n\n")
+cat("<span style='font-size: 0.9em; color: #666;'>Overview of the variables expected to be in this data file.</span>\n\n")
+
+def_summary <- summarize_definition(d$definition)
+print(kable(def_summary, 
+    format = "html",
+    escape = FALSE) |>
+  kable_styling(bootstrap_options = c("hover")) |>
+  column_spec(1:2, monospace = TRUE, extra_css = "font-size: 0.9em;"))
+
+cat("\n## Data File Summary\n\n")
+db_stats <- get_duckdb_stats(d$data_file_path)
+
+# Overall file statistics
+cat("### File Overview\n\n")
+cat("<span style='font-size: 0.9em; color: #666;'>Properties of the uploaded data file.</span>\n\n")
+file_stats <- data.frame(
+  Property = c(
+    "File Type",
+    "Total Rows",
+    "Compressed File Size"
+  ),
+  Value = c(
+    "Laboratory Test Results",
+    format(db_stats$row_count, big.mark = ","),
+    format_file_size(db_stats$file_size)
+  ),
+  stringsAsFactors = FALSE
+)
+print(kable(file_stats, 
+    align = c('l', 'r'),
+    format = "html",
+    escape = FALSE) |>
+  kable_styling(bootstrap_options = c("hover")))
+``` 

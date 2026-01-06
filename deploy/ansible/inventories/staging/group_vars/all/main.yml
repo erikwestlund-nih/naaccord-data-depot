@@ -1,0 +1,20 @@
+---
+# NA-ACCORD Staging Environment Variables
+# Non-sensitive configuration
+
+# SAML Configuration (Mock IDP for staging)
+# TEMPORARY: Using local metadata file to test SAML flow without redirect issues
+# Django uses local file, SimpleSAMLphp generates HTTPS URLs for browser redirects
+# Django SAML endpoints are /saml2/acs/ and /saml2/sls/
+saml_entity_id: "https://naaccord.pequod.sh"
+saml_acs_url: "https://naaccord.pequod.sh/saml2/acs/"
+saml_sls_url: "https://naaccord.pequod.sh/saml2/sls/"
+saml_idp_metadata_url: ""  # Empty = use local file instead
+saml_idp_metadata_file: "/app/deploy/saml/idp_metadata.xml"  # Container path (host /opt/naaccord/depot mounted to /app)
+saml_idp_metadata_file_host: "/opt/naaccord/depot/deploy/saml/idp_metadata.xml"  # Host path for Ansible
+saml_idp_template: "mock_idp_metadata.xml.j2"
+use_docker_saml: true
+use_mock_saml: false
+
+# Bypass SAML for staging testing (mock-idp has issues)
+disable_saml: true

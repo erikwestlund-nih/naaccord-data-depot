@@ -1,0 +1,54 @@
+{
+  "description": "Patient file schema mapping for CNICS cohorts (CWRU, Fenway, JHHCC, UA - Birmingham, UCSD, UNC - Chapel Hill, UW - Seattle, Vanderbilt)",
+  "version": "1.0",
+  "data_file_type": "patient",
+
+  "column_mappings": [
+    {
+      "source_column": "sitePatientId",
+      "target_column": "cohortPatientId",
+      "required": true,
+      "description": "Map site-specific patient ID to standard cohort patient ID"
+    },
+    {
+      "source_column": "site",
+      "target_column": "subSiteID",
+      "required": false,
+      "description": "Map site identifier to sub-site ID"
+    },
+    {
+      "source_column": "siteRecordId",
+      "target_column": "recordId",
+      "required": false,
+      "description": "Map site-specific record ID to standard record ID"
+    }
+  ],
+
+  "value_remaps": {},
+
+  "defaults": {
+    "description": "Default values to apply if columns are missing",
+    "values": {}
+  },
+
+  "pass_through": {
+    "description": "Columns not in mappings are passed through unchanged",
+    "enabled": true
+  },
+
+  "validation": {
+    "description": "Post-mapping validation rules",
+    "rules": [
+      {
+        "type": "required_columns",
+        "columns": ["cohortPatientId"],
+        "severity": "error"
+      },
+      {
+        "type": "no_empty_values",
+        "columns": ["cohortPatientId"],
+        "severity": "error"
+      }
+    ]
+  }
+}

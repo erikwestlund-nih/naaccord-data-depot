@@ -1,0 +1,10 @@
+<c-vars for="" required="false" class="" />
+
+<label 
+    {% if for %}for="{{ for }}"{% endif %}
+    class="block text-sm font-semibold text-gray-700 mb-1 {{ class }}">
+    {{ slot }}
+    {% if required == "true" %}
+    <span class="text-red-500">*</span>
+    {% endif %}
+</label>

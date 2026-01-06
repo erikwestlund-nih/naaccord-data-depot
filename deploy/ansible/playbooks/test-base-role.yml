@@ -1,0 +1,8 @@
+---
+# Test playbook for base role
+- name: Test base role configuration
+  hosts: localhost
+  become: yes
+
+  roles:
+    - base

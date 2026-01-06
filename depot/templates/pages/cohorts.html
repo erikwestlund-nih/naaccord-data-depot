@@ -1,0 +1,62 @@
+<c-app-page title="Cohorts">
+
+    <c-page-header 
+        heading="Cohorts" 
+        blurb="View and manage research cohorts. Each cohort represents a group of participants in clinical studies with specific data collection requirements." 
+    />
+
+    <div class="sm:flex sm:items-center">
+        <div class="sm:flex-auto">
+            {% if cohorts|length > 1 %}
+            <div class="w-48 mt-2 text-sm text-gray-700">
+                <c-input.search name="search" placeholder="Search cohorts" />
+            </div>
+            {% endif %}
+        </div>
+        {% if can_add_cohorts %}
+        <div class="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
+            <c-button href="{{ add_url }}" variant="primary">
+                Add Cohort
+            </c-button>
+        </div>
+        {% endif %}
+    </div>
+
+    <c-card variant="table" no_border="true" class="mt-8">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-50">
+                    <tr>
+                        <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Cohort</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Type</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Members</th>
+                        <th class="relative py-3.5 pl-3 pr-4 sm:pr-6"><span class="sr-only">Actions</span></th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                    {% for cohort in cohorts %}
+                        <tr>
+                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ cohort.name }}</td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ cohort.type }}</td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ cohort.status }}</td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ cohort.member_count }}</td>
+                            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                <a href="{% url 'cohort_detail' cohort.id %}" class="text-blue-700 hover:text-blue-600 font-medium">
+                                    View<span class="sr-only">, {{ cohort.name }}</span>
+                                </a>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5" class="py-8 text-center text-sm text-gray-500">
+                                No cohorts available. {% if not is_administrator and not is_data_manager %}Contact an administrator to be assigned to a cohort.{% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+        </div>
+    </c-card>
+
+</c-app-page>

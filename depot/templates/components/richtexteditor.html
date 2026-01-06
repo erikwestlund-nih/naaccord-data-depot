@@ -1,0 +1,371 @@
+<c-vars 
+    name=""
+    value=""
+    placeholder="Enter your text..."
+    min_height="200"
+    class=""
+/>
+
+<div x-data="markdownEditor_{{ name|default:'default' }}" class="markdown-editor-wrapper {{ class }}">
+    <!-- Wrapper for focus ring -->
+    <div x-ref="editorWrapper" class="editor-focus-wrapper">
+        <!-- Quill editor container -->
+        <div x-ref="editor" 
+             id="editor_{{ name|default:'default' }}"
+             class="quill-editor"
+             :style="'min-height: ' + minHeight + 'px'">
+        </div>
+    </div>
+    
+    <!-- Hidden field for form submission -->
+    <textarea name="{{ name }}" x-model="markdownContent" style="display: none;"></textarea>
+</div>
+
+<script>
+// Simple HTML to Markdown converter
+function htmlToMarkdown(html) {
+    // Create a temporary element
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    
+    let markdown = '';
+    
+    // Process each node
+    const processNode = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent;
+        }
+        
+        if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = node.tagName.toLowerCase();
+            const children = Array.from(node.childNodes).map(processNode).join('');
+            
+            switch(tag) {
+                case 'h1': return `# ${children}\n\n`;
+                case 'h2': return `## ${children}\n\n`;
+                case 'h3': return `### ${children}\n\n`;
+                case 'strong':
+                case 'b': return `**${children}**`;
+                case 'em':
+                case 'i': return `*${children}*`;
+                case 'a': 
+                    const href = node.getAttribute('href');
+                    return `[${children}](${href})`;
+                case 'ul':
+                    return node.querySelectorAll('li').length > 0 
+                        ? Array.from(node.querySelectorAll('li')).map(li => 
+                            `- ${li.textContent.trim()}`
+                        ).join('\n') + '\n\n'
+                        : '';
+                case 'ol':
+                    return node.querySelectorAll('li').length > 0
+                        ? Array.from(node.querySelectorAll('li')).map((li, i) => 
+                            `${i + 1}. ${li.textContent.trim()}`
+                        ).join('\n') + '\n\n'
+                        : '';
+                case 'p': 
+                    return children ? children + '\n\n' : '';
+                case 'br': return '\n';
+                default: return children;
+            }
+        }
+        return '';
+    };
+    
+    markdown = Array.from(temp.childNodes).map(processNode).join('');
+    return markdown.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// Simple Markdown to HTML converter
+function markdownToHtml(markdown) {
+    let html = markdown;
+
+    // Check if this contains HTML entities that need to be unescaped
+    const hasHtmlEntities = html.includes('&lt;') || html.includes('&gt;') || html.includes('&amp;');
+
+    // Check if this contains actual HTML tags (not entities)
+    const hasRealHtmlTags = /<[a-zA-Z][^>]*>/.test(html) && !hasHtmlEntities;
+
+    if (hasHtmlEntities) {
+        // Unescape HTML entities first
+        html = html.replace(/&lt;/g, '<')
+                  .replace(/&gt;/g, '>')
+                  .replace(/&amp;/g, '&');
+    } else if (!hasRealHtmlTags) {
+        // Only escape HTML if this looks like plain markdown (not already HTML)
+        html = html.replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;');
+    }
+    
+    // Headers
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+    
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    
+    // Italic  
+    html = html.replace(/\*([^*\n]+?)\*/g, '<em>$1</em>');
+    
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    
+    // Lists
+    const lines = html.split('\n');
+    let result = [];
+    let inList = false;
+    let listType = '';
+    
+    for (let line of lines) {
+        if (line.match(/^[\*\-] /)) {
+            if (!inList || listType !== 'ul') {
+                if (inList) result.push(`</${listType}>`);
+                result.push('<ul>');
+                inList = true;
+                listType = 'ul';
+            }
+            result.push(`<li>${line.substring(2)}</li>`);
+        } else if (line.match(/^\d+\. /)) {
+            if (!inList || listType !== 'ol') {
+                if (inList) result.push(`</${listType}>`);
+                result.push('<ol>');
+                inList = true;
+                listType = 'ol';
+            }
+            result.push(`<li>${line.replace(/^\d+\. /, '')}</li>`);
+        } else {
+            if (inList) {
+                result.push(`</${listType}>`);
+                inList = false;
+            }
+            if (line.trim() && !line.match(/^<[houl]/)) {
+                result.push(`<p>${line}</p>`);
+            } else if (line.trim()) {
+                result.push(line);
+            }
+        }
+    }
+    
+    if (inList) result.push(`</${listType}>`);
+    
+    return result.join('');
+}
+
+document.addEventListener('alpine:init', () => {
+    const componentName = 'markdownEditor_{{ name|default:"default" }}';
+    if (!window[componentName + '_registered']) {
+        window[componentName + '_registered'] = true;
+        Alpine.data(componentName, () => ({
+        markdownContent: '',
+        minHeight: {{ min_height|default:200 }},
+        quill: null,
+        
+        
+        init() {
+            // Initialize Quill
+            this.quill = new Quill(this.$refs.editor, {
+                theme: 'snow',
+                placeholder: '{{ placeholder }}',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic'],
+                        [{ 'header': [1, 2, 3, false] }],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['link']
+                    ]
+                }
+            });
+            
+            // Load initial content - decode Unicode escapes from escapejs filter
+            let initialValue = `{{ value|escapejs }}`;
+            if (initialValue) {
+                // Decode Unicode escapes (\u003C becomes <)
+                try {
+                    initialValue = JSON.parse('"' + initialValue + '"');
+                } catch (e) {
+                    // If parsing fails, use as-is
+                    console.warn('Could not decode initial value:', e);
+                }
+
+                // Check if the content contains HTML entities that need processing
+                const hasHtmlEntities = initialValue.includes('&lt;') || initialValue.includes('&gt;') || initialValue.includes('&amp;');
+
+                // Check if the content is already proper HTML (from Quill)
+                const hasRealHtmlTags = (initialValue.includes('<p>') || initialValue.includes('<br>') || initialValue.includes('<div>')) && !hasHtmlEntities;
+
+                if (hasRealHtmlTags) {
+                    // It's already HTML, use it directly
+                    this.quill.root.innerHTML = initialValue;
+                    this.markdownContent = htmlToMarkdown(initialValue);
+                } else {
+                    // It's markdown or escaped HTML, convert to proper HTML
+                    const html = markdownToHtml(initialValue);
+                    this.quill.root.innerHTML = html;
+                    // Store the unescaped markdown content for saving
+                    this.markdownContent = hasHtmlEntities ? htmlToMarkdown(html) : initialValue;
+                }
+            }
+            
+            // Handle focus/blur for styling
+            this.quill.on('selection-change', (range) => {
+                if (range) {
+                    this.$refs.editorWrapper.classList.add('focused');
+                } else {
+                    this.$refs.editorWrapper.classList.remove('focused');
+                }
+            });
+            
+            // Handle changes
+            this.quill.on('text-change', () => {
+                const html = this.quill.root.innerHTML;
+                this.markdownContent = htmlToMarkdown(html);
+
+                // Dispatch input event for external x-model and @input handlers
+                // Send both HTML and markdown versions
+                this.$el.dispatchEvent(new CustomEvent('input', {
+                    detail: {
+                        value: this.markdownContent,
+                        html: html,
+                        text: this.quill.getText().trim()
+                    },
+                    bubbles: true
+                }));
+
+            });
+            
+        },
+        
+        }));
+    }
+});
+</script>
+
+<style>
+/* Wrapper for focus ring */
+.markdown-editor-wrapper .editor-focus-wrapper {
+    border-radius: 0.375rem;
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+.markdown-editor-wrapper .editor-focus-wrapper.focused {
+    box-shadow: 0 0 0 2px #3b82f6;
+}
+
+/* Customize Quill appearance */
+.markdown-editor-wrapper .ql-toolbar.ql-snow {
+    border: 1px solid #d1d5db;
+    border-bottom: none;
+    border-radius: 0.375rem 0.375rem 0 0;
+    background-color: #f9fafb;
+    padding: 0.5rem;
+}
+
+.markdown-editor-wrapper .ql-container.ql-snow {
+    border: 1px solid #d1d5db;
+    border-top: 1px solid #e5e7eb;
+    border-radius: 0 0 0.375rem 0.375rem;
+    font-size: 0.875rem;
+}
+
+.markdown-editor-wrapper .ql-editor {
+    min-height: inherit;
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.markdown-editor-wrapper .ql-editor.ql-blank::before {
+    font-style: normal;
+    color: #9ca3af;
+}
+
+.markdown-editor-wrapper .ql-editor:focus {
+    outline: none;
+}
+
+.markdown-editor-wrapper .ql-snow .ql-stroke {
+    stroke: #4b5563;
+}
+
+.markdown-editor-wrapper .ql-snow .ql-fill {
+    fill: #4b5563;
+}
+
+.markdown-editor-wrapper .ql-toolbar button:hover .ql-stroke {
+    stroke: #1f2937;
+}
+
+.markdown-editor-wrapper .ql-toolbar button:hover .ql-fill {
+    fill: #1f2937;
+}
+
+.markdown-editor-wrapper .ql-toolbar button.ql-active .ql-stroke {
+    stroke: #2563eb;
+}
+
+.markdown-editor-wrapper .ql-toolbar button.ql-active .ql-fill {
+    fill: #2563eb;
+}
+
+/* Fix link tooltip positioning */
+.markdown-editor-wrapper {
+    position: relative;
+}
+
+.markdown-editor-wrapper .ql-tooltip {
+    position: absolute !important;
+    z-index: 9999 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    margin-top: 10px !important;
+}
+
+/* Make the link tooltip look better */
+.markdown-editor-wrapper .ql-tooltip.ql-editing {
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+}
+
+/* Hide the clean/remove formatting button (Tx icon) */
+.markdown-editor-wrapper .ql-clean {
+    display: none !important;
+}
+
+/* Style content */
+.markdown-editor-wrapper .ql-editor h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem 0;
+}
+
+.markdown-editor-wrapper .ql-editor h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0.875rem 0 0.5rem 0;
+}
+
+.markdown-editor-wrapper .ql-editor h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0.75rem 0 0.5rem 0;
+}
+
+/* White background for specific editor instances */
+.white-editor .ql-toolbar.ql-snow {
+    border: none;
+    border-radius: 0;
+    background-color: #f9fafb;
+}
+
+.white-editor .ql-container.ql-snow {
+    border: none;
+    border-radius: 0;
+    background-color: white;
+}
+
+.white-editor .ql-editor {
+    background-color: white;
+}
+</style>

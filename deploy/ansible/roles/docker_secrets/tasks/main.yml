@@ -1,0 +1,116 @@
+---
+# Docker Secrets Management Role
+# Creates and manages Docker secret files from Ansible vault
+
+- name: Ensure Docker secrets directory exists
+  ansible.builtin.file:
+    path: /var/lib/docker/secrets
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  tags: ['docker', 'secrets']
+
+- name: Create database password secret
+  ansible.builtin.copy:
+    content: "{{ vault_db_app_password }}"
+    dest: /var/lib/docker/secrets/db_password
+    owner: root
+    group: root
+    mode: '0644'
+  no_log: true
+  tags: ['docker', 'secrets', 'database']
+
+- name: Create Django secret key
+  ansible.builtin.copy:
+    content: "{{ vault_django_secret_key }}"
+    dest: /var/lib/docker/secrets/django_secret_key
+    owner: root
+    group: root
+    mode: '0644'
+  no_log: true
+  tags: ['docker', 'secrets', 'django']
+
+- name: Create internal API key secret
+  ansible.builtin.copy:
+    content: "{{ vault_internal_api_key }}"
+    dest: /var/lib/docker/secrets/internal_api_key
+    owner: root
+    group: root
+    mode: '0644'
+  no_log: true
+  tags: ['docker', 'secrets', 'api']
+
+- name: Create Redis password secret
+  ansible.builtin.copy:
+    content: "{{ vault_redis_password }}"
+    dest: /var/lib/docker/secrets/redis_password
+    owner: root
+    group: root
+    mode: '0644'
+  no_log: true
+  tags: ['docker', 'secrets', 'redis']
+
+- name: Create WireGuard web private key secret
+  ansible.builtin.copy:
+    content: "{{ vault_wg_web_private_key }}"
+    dest: /var/lib/docker/secrets/wg_web_private_key
+    owner: root
+    group: root
+    mode: '0644'
+  no_log: true
+  when: "'web' in group_names"
+  tags: ['docker', 'secrets', 'wireguard']
+
+- name: Create WireGuard web public key secret
+  ansible.builtin.copy:
+    content: "{{ vault_wg_web_public_key }}"
+    dest: /var/lib/docker/secrets/wg_web_public_key
+    owner: root
+    group: root
+    mode: '0644'
+  no_log: true
+  tags: ['docker', 'secrets', 'wireguard']
+
+- name: Create WireGuard services private key secret
+  ansible.builtin.copy:
+    content: "{{ vault_wg_services_private_key }}"
+    dest: /var/lib/docker/secrets/wg_services_private_key
+    owner: root
+    group: root
+    mode: '0644'
+  no_log: true
+  when: "'services' in group_names"
+  tags: ['docker', 'secrets', 'wireguard']
+
+- name: Create WireGuard services public key secret
+  ansible.builtin.copy:
+    content: "{{ vault_wg_services_public_key }}"
+    dest: /var/lib/docker/secrets/wg_services_public_key
+    owner: root
+    group: root
+    mode: '0644'
+  no_log: true
+  tags: ['docker', 'secrets', 'wireguard']
+
+- name: Create WireGuard preshared key secret
+  ansible.builtin.copy:
+    content: "{{ vault_wg_preshared_key }}"
+    dest: /var/lib/docker/secrets/wg_preshared_key
+    owner: root
+    group: root
+    mode: '0644'
+  no_log: true
+  tags: ['docker', 'secrets', 'wireguard']
+
+- name: Verify Docker secrets created
+  ansible.builtin.command:
+    cmd: ls -1 /var/lib/docker/secrets/
+  register: docker_secrets_list
+  changed_when: false
+  tags: ['docker', 'secrets', 'verify']
+
+- name: Display created Docker secrets
+  ansible.builtin.debug:
+    msg: "Docker secrets created: {{ docker_secrets_list.stdout_lines }}"
+  tags: ['docker', 'secrets', 'verify']

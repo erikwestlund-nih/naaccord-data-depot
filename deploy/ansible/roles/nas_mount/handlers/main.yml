@@ -1,0 +1,3 @@
+---
+# NAS mount handlers
+# No handlers needed - mount operations are handled in tasks

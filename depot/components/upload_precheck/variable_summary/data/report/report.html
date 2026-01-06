@@ -1,0 +1,26 @@
+<div class="py-0.5">
+    <dl class="divide-y divide-gray-100">
+
+        {% if results %}
+            {% for result in results %}
+                {% if result.report.status == "success" %}
+                {% component "audit.variable_summary.row" name=result.display_name subtle=True %}
+
+                    {% if result.name == "examples" %}
+                        {% component "audit.variable_summary.data.example_values" report=result.report /%}
+                    {% elif result.name == "outliers" and result.report.value != "" %}
+                        {{ result.report.value }} (&plusmn; 3 SD)
+                    {% elif "value_rendered" in result.report and result.report.value_rendered.type == "base64_image" %}
+                        <img src="data:image/png;base64,{{ result.report.value_rendered.data }}" alt="Image" class="w-full">
+                    {% elif "value" in result.report %}
+                        {{ result.report.value }}
+                    {% else %}
+                        <div class="text-xs text-gray-500">No value found</div>
+                    {% endif %}
+
+                {% endcomponent %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    </dl>
+</div>

@@ -1,0 +1,77 @@
+<c-vars 
+    variant="primary" 
+    size="md" 
+    type="button" 
+    onclick=""
+    x_data_override=""
+    idle_text="Save"
+    saving_text="Saving..."
+    saved_text="Saved"
+    saved_duration="750"
+/>
+
+<!-- Stateful button component that handles Save/Saving/Saved states -->
+<button type="{{ type }}"
+        x-data="{ 
+            state: 'idle',
+            async handleClick() {
+                if (this.state !== 'idle') return;
+                this.state = 'saving';
+                try {
+                    {% if x_data_override %}
+                        {{ x_data_override|safe }}
+                    {% elif onclick %}
+                        await (async () => { {{ onclick|safe }} })();
+                    {% endif %}
+                    this.state = 'saved';
+                    setTimeout(() => {
+                        this.state = 'idle';
+                    }, {{ saved_duration }});
+                } catch (error) {
+                    console.error('Button action failed:', error);
+                    this.state = 'idle';
+                }
+            }
+        }"
+        @click="handleClick"
+        :disabled="state !== 'idle'"
+        :class="{
+            'opacity-50 cursor-not-allowed': state !== 'idle',
+            'bg-green-600 hover:bg-green-600': state === 'saved' && '{{ variant }}' === 'primary',
+            'bg-green-500 hover:bg-green-500': state === 'saved' && '{{ variant }}' === 'secondary'
+        }"
+        class="inline-flex items-center justify-center gap-2
+               {% if size == 'sm' %}px-3 py-1 text-sm{% elif size == 'lg' %}px-6 py-3 text-base{% else %}px-4 py-2 text-sm{% endif %}
+               {% if variant == 'primary' %}bg-blue-600 text-white hover:bg-blue-700
+               {% elif variant == 'secondary' %}bg-gray-600 text-white hover:bg-gray-700
+               {% elif variant == 'danger' %}bg-red-600 text-white hover:bg-red-700
+               {% elif variant == 'success' %}bg-green-600 text-white hover:bg-green-700
+               {% elif variant == 'warning' %}bg-yellow-600 text-white hover:bg-yellow-700
+               {% elif variant == 'ghost' %}bg-transparent text-gray-700 hover:bg-gray-100 border border-gray-300
+               {% else %}bg-gray-600 text-white hover:bg-gray-700{% endif %}
+               rounded font-medium transition-all duration-200">
+    
+    <!-- Content based on state -->
+    <template x-if="state === 'idle'">
+        <span>{{ idle_text }}</span>
+    </template>
+    
+    <template x-if="state === 'saving'">
+        <span class="flex items-center gap-2">
+            <c-icon icon="arrow-path" family="solid" class="h-4 w-4 animate-spin" />
+            {{ saving_text }}
+        </span>
+    </template>
+    
+    <template x-if="state === 'saved'">
+        <span class="flex items-center gap-2">
+            <c-icon icon="check" family="solid" class="h-4 w-4" />
+            {{ saved_text }}
+        </span>
+    </template>
+    
+    <!-- Allow for custom slot content that will override the state-based content -->
+    {% if slot %}
+        {{ slot }}
+    {% endif %}
+</button>

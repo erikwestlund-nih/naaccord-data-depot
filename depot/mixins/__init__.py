@@ -1,0 +1,1 @@
+# Django mixins for common functionality

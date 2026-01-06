@@ -1,0 +1,7 @@
+---
+# Firewall handlers
+
+- name: Reload firewalld
+  ansible.builtin.command: firewall-cmd --reload
+  changed_when: false
+  tags: ['firewall', 'security']

@@ -1,0 +1,37 @@
+---
+# Main tasks file for base role
+- name: Include user management tasks
+  ansible.builtin.import_tasks: users.yml
+  tags:
+    - base
+    - users
+
+- name: Include package installation tasks
+  ansible.builtin.import_tasks: packages.yml
+  tags:
+    - base
+    - packages
+
+- name: Include Docker installation tasks
+  ansible.builtin.import_tasks: docker.yml
+  tags:
+    - base
+    - docker
+
+- name: Include zsh configuration tasks
+  ansible.builtin.import_tasks: zsh.yml
+  tags:
+    - base
+    - zsh
+
+- name: Include system configuration tasks
+  ansible.builtin.import_tasks: system.yml
+  tags:
+    - base
+    - system
+
+- name: Include aliases configuration tasks
+  ansible.builtin.import_tasks: aliases.yml
+  tags:
+    - base
+    - aliases

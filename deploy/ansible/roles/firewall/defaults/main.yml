@@ -1,0 +1,26 @@
+---
+# Firewall defaults
+
+# Common ports for all servers
+firewall_common_ports:
+  - { port: 22, proto: tcp, comment: "SSH" }
+
+# Services server specific ports
+firewall_services_ports:
+  - { port: 51820, proto: udp, comment: "WireGuard tunnel" }
+
+# Web server specific ports (production)
+firewall_web_ports:
+  - { port: 443, proto: tcp, comment: "HTTPS" }
+
+# Web server specific ports (staging - mock IDP)
+firewall_web_staging_ports:
+  - { port: 80, proto: tcp, comment: "HTTP (NPM forwards here)" }
+  - { port: 443, proto: tcp, comment: "HTTPS" }
+  - { port: 8080, proto: tcp, comment: "Mock IDP HTTP" }
+  - { port: 8443, proto: tcp, comment: "Mock IDP HTTPS" }
+
+# Default policies
+firewall_default_incoming: deny
+firewall_default_outgoing: allow
+firewall_default_routed: deny

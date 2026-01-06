@@ -1,0 +1,19 @@
+<c-vars status="" text="" />
+
+{% if status == 'draft' %}
+    <c-badge type="default" size="sm">{{ text|default:"Draft" }}</c-badge>
+{% elif status == 'in_progress' %}
+    <c-badge type="warning" size="sm">{{ text|default:"In Progress" }}</c-badge>
+{% elif status == 'completed' %}
+    <c-badge type="success" size="sm">{{ text|default:"Completed" }}</c-badge>
+{% elif status == 'signed_off' %}
+    <c-badge type="info" size="sm">{{ text|default:"Signed Off" }}</c-badge>
+{% elif status == 'failed' %}
+    <c-badge type="danger" size="sm">{{ text|default:"Failed" }}</c-badge>
+{% elif status == 'pending' %}
+    <c-badge type="warning" size="sm">{{ text|default:"Pending" }}</c-badge>
+{% elif status == 'processing' %}
+    <c-badge type="warning" size="sm">{{ text|default:"Processing" }}</c-badge>
+{% else %}
+    <c-badge type="default" size="sm">{{ text|default:status }}</c-badge>
+{% endif %}

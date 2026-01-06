@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8" x-data="{ auditResult: null, loading: true, error: null }" x-init="
+    fetch('/api/audits/{{ audit_id }}/status/')
+        .then(response => response.json())
+        .then(data => {
+            auditResult = data;
+            loading = false;
+        })
+        .catch(err => {
+            error = err.message;
+            loading = false;
+        });
+">
+    <div class="max-w-3xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Audit Status</h1>
+        
+        <!-- Loading State -->
+        <div x-show="loading" class="text-center py-8">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+            <p class="mt-4 text-gray-600">Loading audit status...</p>
+        </div>
+
+        <!-- Error State -->
+        <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+            <strong class="font-bold">Error:</strong>
+            <span class="block sm:inline" x-text="error"></span>
+        </div>
+
+        <!-- Results -->
+        <div x-show="!loading && !error && auditResult" class="space-y-6">
+            <!-- Status -->
+            <div class="bg-white shadow rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Status</h2>
+                <div class="flex items-center">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                          :class="{
+                              'bg-green-100 text-green-800': auditResult.status === 'completed',
+                              'bg-yellow-100 text-yellow-800': auditResult.status === 'processing',
+                              'bg-red-100 text-red-800': auditResult.status === 'failed'
+                          }"
+                          x-text="auditResult.status">
+                    </span>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div x-show="auditResult.result" class="bg-white shadow rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Results</h2>
+                <div class="space-y-4">
+                    <!-- Data File Type -->
+                    <div>
+                        <h3 class="font-medium text-gray-700">Data File Type</h3>
+                        <p x-text="auditResult.result.data_file_type_label"></p>
+                    </div>
+
+                    <!-- File Size -->
+                    <div>
+                        <h3 class="font-medium text-gray-700">File Size</h3>
+                        <p x-text="(auditResult.result.file_size / 1024 / 1024).toFixed(2) + ' MB'"></p>
+                    </div>
+
+                    <!-- Statistics -->
+                    <div x-show="auditResult.result.stats">
+                        <h3 class="font-medium text-gray-700">Statistics</h3>
+                        <div class="mt-2 grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Total Rows</p>
+                                <p x-text="auditResult.result.stats.row_count"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Unique Rows</p>
+                                <p x-text="auditResult.result.stats.unique_rows"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Null Values</p>
+                                <p x-text="auditResult.result.stats.null_count"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column Statistics -->
+                    <div x-show="auditResult.result.stats && auditResult.result.stats.column_stats">
+                        <h3 class="font-medium text-gray-700">Column Statistics</h3>
+                        <div class="mt-2 space-y-4">
+                            <template x-for="(stats, column) in auditResult.result.stats.column_stats" :key="column">
+                                <div class="border rounded p-3">
+                                    <h4 class="font-medium" x-text="column"></h4>
+                                    <div class="grid grid-cols-2 gap-4 mt-2">
+                                        <div>
+                                            <p class="text-sm text-gray-500">Null Values</p>
+                                            <p x-text="stats.nulls"></p>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm text-gray-500">Unique Values</p>
+                                            <p x-text="stats.unique_values"></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notebook -->
+            <div x-show="auditResult.notebook" class="bg-white shadow rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Notebook</h2>
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="font-medium text-gray-700">Status</h3>
+                        <div class="flex items-center mt-2">
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                                  :class="{
+                                      'bg-green-100 text-green-800': auditResult.notebook.status === 'completed',
+                                      'bg-yellow-100 text-yellow-800': auditResult.notebook.status === 'pending',
+                                      'bg-red-100 text-red-800': auditResult.notebook.status === 'failed'
+                                  }"
+                                  x-text="auditResult.notebook.status">
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Error Message -->
+                    <div x-show="auditResult.notebook.error" class="mt-4">
+                        <h3 class="font-medium text-gray-700">Error</h3>
+                        <p class="text-red-600" x-text="auditResult.notebook.error"></p>
+                    </div>
+
+                    <!-- View Button -->
+                    <div x-show="auditResult.notebook.status === 'completed'" class="mt-4">
+                        <a :href="'/notebooks/' + auditResult.notebook.id + '/view'"
+                           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            View Notebook
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

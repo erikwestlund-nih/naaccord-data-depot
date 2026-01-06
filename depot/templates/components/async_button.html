@@ -1,0 +1,30 @@
+<c-vars variant="primary" size="md" type="button" onclick="" loading_text="Processing..." icon="" />
+
+<button type="{{ type }}"
+        x-data="{ loading: false }"
+        @click="loading = true; setTimeout(() => { {{ onclick }} }, 10)"
+        :disabled="loading"
+        class="inline-flex items-center justify-center transition-all duration-200
+               {% if size == 'sm' %}px-3 py-1 text-sm{% elif size == 'lg' %}px-6 py-3 text-base{% else %}px-4 py-2 text-sm{% endif %}
+               {% if variant == 'primary' %}bg-blue-600 text-white hover:bg-blue-700
+               {% elif variant == 'secondary' %}bg-gray-600 text-white hover:bg-gray-700
+               {% elif variant == 'danger' %}bg-red-600 text-white hover:bg-red-700
+               {% elif variant == 'success' %}bg-green-600 text-white hover:bg-green-700
+               {% elif variant == 'warning' %}bg-yellow-600 text-white hover:bg-yellow-700
+               {% else %}bg-gray-600 text-white hover:bg-gray-700{% endif %}
+               rounded font-medium"
+        :class="{ 'opacity-50 cursor-not-allowed': loading }">
+    <span x-show="!loading" class="flex items-center">
+        {% if icon %}
+        <c-icon icon="{{ icon }}" family="solid" class="h-4 w-4 mr-2" />
+        {% endif %}
+        {{ slot }}
+    </span>
+    <span x-show="loading" class="flex items-center">
+        <svg class="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        {{ loading_text }}
+    </span>
+</button>

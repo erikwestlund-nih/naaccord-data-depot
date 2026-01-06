@@ -1,0 +1,16 @@
+---
+- name: Configure NA-ACCORD Services Server
+  hosts: services
+  become: yes
+
+  roles:
+    - base
+    - firewall
+    - hosts_management
+    - nas_mount
+    - mariadb
+    - docker_secrets
+    - logrotate
+    - docker_services
+    # Wireguard is handled by docker_services role (container-based)
+    - wireguard

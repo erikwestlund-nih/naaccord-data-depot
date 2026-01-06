@@ -1,0 +1,57 @@
+```{r}
+#| echo: false
+#| results: asis
+
+cat("\n### Column Overview\n\n")
+
+cat("The below table shows the following statistics for each column:\n\n")
+cat("- **Missing (N)**: Number of missing values\n")
+cat("- **%**: Percentage of rows with missing values\n")
+cat("- **Unique Values**: Number of distinct values\n")
+cat("- **Cardinality**: Percentage of values that are unique\n")
+cat("  - High (>90%): Most values are unique (e.g., IDs)\n")
+cat("  - Medium (1-90%): Some repetition (e.g., dates)\n")
+cat("  - Low (<1%): Many repeated values (e.g., categories)\n\n")
+
+# Add extra whitespace using HTML
+cat("<br><br>")
+
+# Get definition types
+def_types <- sapply(d$definition, function(x) {
+  if (!is.null(x$type)) x$type else ""
+})
+names(def_types) <- sapply(d$definition, function(x) x$name)
+
+# Format column statistics
+col_stats <- data.frame(
+  "Variable" = d$db_stats$column_stats$column_name,
+  "Type" = ifelse(def_types[d$db_stats$column_stats$column_name] == "", 
+                  "not specified", 
+                  def_types[d$db_stats$column_stats$column_name]),
+  "Missing N" = d$db_stats$column_stats$nulls,
+  "Missing Pct" = sprintf("%.1f", d$db_stats$column_stats$nulls / d$db_stats$row_count * 100),
+  "Unique" = d$db_stats$column_stats$unique_values,
+  "Cardinality" = sapply(d$db_stats$column_stats$unique_values / d$db_stats$row_count * 100,
+    function(pct) {
+      if (pct > 90) {
+        sprintf("High (%.1f%%)", pct)
+      } else if (pct > 1) {
+        sprintf("Medium (%.1f%%)", pct)
+      } else {
+        sprintf("Low (%.1f%%)", pct)
+      }
+    }
+  ),
+  row.names = NULL,
+  stringsAsFactors = FALSE
+)[d$db_stats$column_stats$column_name != "row_no", ]
+
+# Add row highlighting for columns with high null percentage
+print(kable(col_stats, 
+    align = c('l', 'l', 'r', 'r', 'r', 'l'),
+    row.names = FALSE,
+    format = "html",
+    escape = FALSE) |>
+  kable_styling(bootstrap_options = c("hover")) |>
+  column_spec(2:6, monospace = TRUE, extra_css = "font-size: 0.9em;"))
+```

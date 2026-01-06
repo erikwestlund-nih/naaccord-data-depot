@@ -1,0 +1,50 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "question",
+    "type": "string",
+    "description": "Code or variable name used by cohort to indicate survey question.",
+    "example": "q1, q2, phq9_1"
+  },
+  {
+    "name": "response",
+    "type": "string",
+    "description": "Code or value used by cohort to indicate response value for question.",
+    "example": "1, 2, 3, 4"
+  },
+  {
+    "name": "responseDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date of response to survey question; date questionnaire was administered to patient."
+  },
+  {
+    "name": "questionLabel",
+    "type": "string",
+    "description": "Text string that provides more information about the question. Analogous to variable label used in codebook.",
+    "example": "Feeling down, depressed or hopeless?, Little interest or pleasure in doing things?"
+  },
+  {
+    "name": "responseLabel",
+    "type": "string",
+    "description": "Text string that provides more descriptive information about response value. Analogous to value labels used in codebook.",
+    "example": "Not at all, Nearly every day, More than half the days, Several days"
+  },
+  {
+    "name": "instrument",
+    "type": "string",
+    "description": "Text string that provides the name of the survey instrument used. For P2024, includes depression instruments (PHQ-2, PHQ-9, CES-D, BDI) and anxiety instruments (GAD-7, PHQ-5/PHQ-PD, BAI, SAMISS).",
+    "example": "PHQ-9, GAD-7, PHQ-2, CES-D, BDI, BAI, PHQ-5, SAMISS"
+  },
+  {
+    "name": "administration",
+    "type": "string",
+    "description": "Method of survey administration. Common methods: 'Self-administered, tablet or computer', 'Self-administered, paper', 'Interviewer-administered, face-to-face', 'Interviewer-administered, phone or video call', 'Audio Computer-Assisted Self-Interviews'. If none apply, use a concise, descriptive, consistently formatted text string label.",
+    "example": "Self-administered, tablet or computer, Interviewer-administered, face-to-face"
+  }
+]

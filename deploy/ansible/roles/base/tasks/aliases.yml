@@ -1,0 +1,70 @@
+---
+# Configure shell aliases for NA-ACCORD deployment
+
+- name: Determine git branch based on environment
+  ansible.builtin.set_fact:
+    default_git_branch: "{{ 'main' if naaccord_environment == 'production' else 'deploy' }}"
+
+- name: Create NA-ACCORD aliases script
+  ansible.builtin.copy:
+    dest: /etc/profile.d/naaccord-aliases.sh
+    mode: '0644'
+    content: |
+      # NA-ACCORD Deployment Aliases
+
+      # Quick deployment command (code + containers only)
+      alias deployna='/opt/naaccord/depot/deploy/scripts/deploy-update.sh'
+
+      # Refresh aliases after deployment
+      alias narefresh='source /etc/profile.d/naaccord-aliases.sh && echo "Aliases refreshed!"'
+
+      # Navigate to common directories
+      alias cdna='cd /opt/naaccord/depot'
+      alias cdnadeploy='cd /opt/naaccord/depot/deploy/ansible'
+      alias cdnalogs='cd /opt/naaccord/depot && docker compose -f docker-compose.prod.yml logs -f'
+
+      # Docker shortcuts
+      alias nalogs='docker compose -f /opt/naaccord/depot/docker-compose.prod.yml logs -f'
+      alias narestart='docker compose -f /opt/naaccord/depot/docker-compose.prod.yml restart'
+      alias nastatus='docker compose -f /opt/naaccord/depot/docker-compose.prod.yml ps'
+      alias nahealth='curl -s http://localhost:8000/health/ | jq . 2>/dev/null || curl -s http://localhost:8000/health/'
+
+      # Git shortcuts
+      alias nagit='cd /opt/naaccord/depot && git status'
+      alias napull='cd /opt/naaccord/depot && git pull origin {{ default_git_branch }}'
+
+      # Service-specific logs
+      alias nalogs-web='docker logs naaccord-web -f'
+      alias nalogs-services='docker logs naaccord-services -f'
+      alias nalogs-celery='docker logs naaccord-celery -f'
+      alias nalogs-nginx='docker logs naaccord-nginx -f'
+
+      # Ansible shortcuts
+      alias nadeploy-web='cd /opt/naaccord/depot/deploy/ansible && ansible-playbook -i inventories/{{ naaccord_environment }}/hosts.yml playbooks/web-server.yml --connection local --vault-password-file ~/.naaccord_vault_{{ naaccord_environment }}'
+      alias nadeploy-services='cd /opt/naaccord/depot/deploy/ansible && ansible-playbook -i inventories/{{ naaccord_environment }}/hosts.yml playbooks/services-server.yml --connection local --vault-password-file ~/.naaccord_vault_{{ naaccord_environment }}'
+      alias naseed='cd /opt/naaccord/depot/deploy/ansible && ansible-playbook -i inventories/{{ naaccord_environment }}/hosts.yml playbooks/seed.yml --connection local --vault-password-file ~/.naaccord_vault_{{ naaccord_environment }}'
+
+      # Help command
+      alias nahelp='cat /etc/profile.d/naaccord-aliases.sh | grep "^alias" | sed "s/alias /  /"'
+  tags:
+    - aliases
+
+- name: Add aliases info to MOTD
+  ansible.builtin.blockinfile:
+    path: /etc/motd
+    create: yes
+    marker: "# {mark} NA-ACCORD ALIASES"
+    block: |
+
+      🚀 NA-ACCORD Quick Commands:
+        deployna      - Deploy latest code and restart containers
+        narefresh     - Refresh shell aliases after deployment
+        nahelp        - Show all NA-ACCORD aliases
+        cdna          - Navigate to /opt/naaccord/depot
+        nalogs        - View all container logs
+        nastatus      - Show container status
+
+      Run 'nahelp' to see all available aliases.
+  tags:
+    - aliases
+    - motd

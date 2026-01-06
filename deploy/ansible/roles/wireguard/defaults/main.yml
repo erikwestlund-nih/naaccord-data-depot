@@ -1,0 +1,9 @@
+---
+# WireGuard defaults
+
+wireguard_listen_port: 51820
+wireguard_tunnel_subnet: 10.100.0.0/24
+
+# Set by inventory
+wireguard_ip: "{{ wireguard_ip }}"
+wireguard_peer_ip: "{{ '10.100.0.11' if 'web' in group_names else '10.100.0.10' }}"

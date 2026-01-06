@@ -1,0 +1,196 @@
+# NA-ACCORD Production Site Configuration
+
+# Upstream definition for local web container
+# NOTE: web container uses network_mode: service:wireguard-web
+# Therefore nginx (also on wireguard-web network) accesses via localhost
+# Use explicit IPv4 to avoid IPv6 resolution issues
+upstream django_web {
+    server 127.0.0.1:8000 max_fails=3 fail_timeout=30s;
+    keepalive 32;
+}
+
+# HTTP server
+server {
+    listen 80;
+    server_name _;
+
+    # Health check endpoint (HTTP)
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+{% if ssl_enabled | default(true) %}
+    # Redirect all other traffic to HTTPS (production)
+    location / {
+        return 301 https://$host$request_uri;
+    }
+{% else %}
+{% if naaccord_environment == 'staging' %}
+    # SimpleSAMLphp Mock IDP (Staging only)
+    # Proxies /simplesaml/ to mock-idp via extra_hosts mapping
+    location /simplesaml/ {
+        proxy_pass http://mock-idp.naaccord.lan:8080/simplesaml/;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Port 443;
+        proxy_set_header X-Forwarded-Host naaccord.pequod.sh;
+        proxy_set_header Host naaccord.pequod.sh;
+
+        # Disable buffering for SSO redirects
+        proxy_buffering off;
+    }
+
+{% endif %}
+    # Serve HTTP directly (staging - NPM/Cloudflare Tunnel handles SSL)
+    location / {
+        proxy_pass http://django_web;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Preserve X-Forwarded-Proto from NPM (Cloudflare Tunnel)
+        # Uses $forwarded_proto map from http context (defaults to $scheme if not set)
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        proxy_set_header Host $http_host;
+
+        # Connection pooling
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+    }
+{% endif %}
+}
+
+{% if ssl_enabled | default(true) %}
+# HTTPS server
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name _;
+
+    # SSL certificates (JHU IT-provided)
+    ssl_certificate {{ ssl_cert_path }};
+    ssl_certificate_key {{ ssl_key_path }};
+
+    # Large file uploads - server-wide default (nginx default is only 1MB!)
+    # This ensures uploads work on all URLs, not just the upload-specific location
+    client_max_body_size 3072m;
+
+    # Security headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header Content-Security-Policy "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';" always;
+
+    # Static files
+    location /static/ {
+        alias /var/www/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
+    # Media files (reports, downloads)
+    location /media/ {
+        alias /var/www/media/;
+        expires 1h;
+        add_header Cache-Control "private";
+
+        # Require authentication for media files
+        # This will be validated by Django
+        location ~ ^/media/(reports|secure)/ {
+            proxy_pass http://django_web;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Host $http_host;
+        }
+    }
+
+    # File upload endpoints (large body size)
+    # Matches: /upload-precheck/upload, /precheck-validation/upload, /upload/temp,
+    # /submissions/*/upload, /submissions/*/*/attachments/upload*, /internal/storage/upload*
+    location ~ ^/(upload-precheck/upload|precheck-validation/upload|upload/|submissions/[^/]+/upload|submissions/[^/]+/[^/]+/attachments/upload|internal/storage/upload) {
+        # Apply rate limiting
+        limit_req zone=upload burst=5 nodelay;
+
+        # Large file upload settings
+        client_max_body_size 3072m;
+        client_body_timeout 600s;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_connect_timeout 75s;
+
+        # Stream uploads without buffering
+        proxy_request_buffering off;
+        proxy_buffering off;
+
+        proxy_pass http://django_web;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $http_host;
+        proxy_set_header Content-Length $content_length;
+        proxy_set_header Content-Type $content_type;
+    }
+
+    # Authentication endpoints (rate limited)
+    location ~ ^/(saml2/|sign-in|sign-up|password-reset) {
+        limit_req zone=login burst=2 nodelay;
+
+        proxy_pass http://django_web;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $http_host;
+    }
+
+    # API endpoints (rate limited)
+    location /api/ {
+        limit_req zone=api burst=20 nodelay;
+
+        proxy_pass http://django_web;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $http_host;
+    }
+
+    # WebSocket support for real-time features
+    location /ws/ {
+        proxy_pass http://django_web;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $http_host;
+        proxy_read_timeout 86400;
+    }
+
+    # Default location
+    location / {
+        proxy_pass http://django_web;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $http_host;
+
+        # Connection pooling
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        # Caching for GET requests
+        proxy_cache cache;
+        proxy_cache_valid 200 1m;
+        proxy_cache_key "$scheme$request_method$host$request_uri";
+        proxy_cache_use_stale error timeout invalid_header updating;
+        add_header X-Cache-Status $upstream_cache_status;
+    }
+
+    # Error pages
+    error_page 502 503 504 /50x.html;
+    location = /50x.html {
+        root /usr/share/nginx/html;
+    }
+}
+{% endif %}

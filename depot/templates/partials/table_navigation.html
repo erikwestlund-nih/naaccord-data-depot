@@ -1,0 +1,42 @@
+<!-- Table Navigation Component -->
+<div class="{% if show_top_border %}border-t{% endif %} {% if show_bottom_border %}border-b{% endif %} border-gray-200 pt-6 pb-6">
+    <div class="flex items-center justify-between gap-6 px-1">
+        <!-- Previous Table -->
+        <div class="flex-1">
+            {% if previous_table %}
+            <a href="{% url 'submission_table_manage' submission.id previous_table.name %}"
+               class="inline-flex items-center gap-2 text-sm text-gray-700 hover:text-gray-900 hover:underline">
+                <c-icon icon="chevron-left" class="h-2.5 w-2.5 flex-shrink-0" family="solid" />
+                <span>{{ previous_table.label }}</span>
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- Table Selector (Middle) -->
+        <div class="flex-shrink-0">
+            <div class="grid grid-cols-1">
+                <select
+                    onchange="window.location.href='{% url 'submission_table_manage' submission.id 'PLACEHOLDER' %}'.replace('PLACEHOLDER', this.value)"
+                    class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-700 sm:text-sm/6">
+                    {% for table in all_tables %}
+                    <option value="{{ table.name }}" {% if table.id == file_type.id %}selected{% endif %}>
+                        {{ table.label }} [{{ table.status_display }}]
+                    </option>
+                    {% endfor %}
+                </select>
+                <c-icon icon="chevron-down" family="solid" class="pointer-events-none col-start-1 row-start-1 mr-3 h-2.5 w-2.5 self-center justify-self-end text-gray-500" />
+            </div>
+        </div>
+
+        <!-- Next Table -->
+        <div class="flex-1 text-right">
+            {% if next_table %}
+            <a href="{% url 'submission_table_manage' submission.id next_table.name %}"
+               class="inline-flex items-center gap-2 text-sm text-gray-700 hover:text-gray-900 hover:underline">
+                <span>{{ next_table.label }}</span>
+                <c-icon icon="chevron-right" class="h-2.5 w-2.5 flex-shrink-0" family="solid" />
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>

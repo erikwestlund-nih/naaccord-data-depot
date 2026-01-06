@@ -1,0 +1,21 @@
+{
+  "name": "NA-ACCORD Data Depot",
+  "short_name": "NA-ACCORD",
+  "description": "North American AIDS Cohort Collaboration on Research and Design - Data Submission Platform",
+  "icons": [
+    {
+      "src": "/static/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#dc2626",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/"
+}

@@ -1,0 +1,9 @@
+# Application-specific configuration
+quarto:
+  audit_templates:
+    default: generic_audit.qmd
+    mappings:
+      # Add specific template mappings for different file types
+      # Example:
+      # csv: csv_audit.qmd
+      # excel: excel_audit.qmd

@@ -1,0 +1,8 @@
+user_email,group_name
+admin@jh.edu,NA Accord Administrators
+vacs.manager@jh.edu,Cohort Managers
+macs.user@jh.edu,Cohort Managers
+wihs.user@jh.edu,Cohort Managers
+viewer@jh.edu,Cohort Viewers
+multi.cohort@jh.edu,Cohort Managers
+nocohort@jh.edu,Cohort Viewers

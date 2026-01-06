@@ -1,0 +1,16 @@
+---
+# Logrotate defaults
+
+# NA-ACCORD application logs
+naaccord_log_dir: /var/log/naaccord
+naaccord_log_rotation_days: 90
+naaccord_log_rotation_count: 90
+
+# Nginx logs
+nginx_log_dir: /var/log/nginx
+nginx_log_rotation_days: 90
+nginx_log_rotation_count: 90
+
+# Docker container logs
+docker_log_rotation_weeks: 4
+docker_log_rotation_count: 4

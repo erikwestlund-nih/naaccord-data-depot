@@ -1,0 +1,76 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "testName",
+    "type": "string",
+    "description": "Name of the laboratory test performed.",
+    "example": "Albumin, Abs CD4, HIV-1 RNA RT-PCR Ultra, Hemoglobin",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "result",
+    "type": "string",
+    "description": "Result of the laboratory test. Can be numeric (e.g., '4.5') or special values ('<50', '>75,000', 'BLQ', 'ALQ')."
+  },
+  {
+    "name": "units",
+    "type": "string",
+    "description": "Units that test are measured in at your cohort.",
+    "example": "g/dL, THOU/uL, copies/mL, mMol/L, mg/dL, U/L",
+    "value_optional": true
+  },
+  {
+    "name": "normalMin",
+    "type": "string",
+    "description": "Normal expected minimum value for this test. May be missing if not available.",
+    "value_optional": true,
+    "validators": [
+      {
+        "name": "recommended",
+        "params": {
+          "message": "If a normal minimum is not provided, we may ask for this information at a later date."
+        }
+      }
+    ]
+  },
+  {
+    "name": "normalMax",
+    "type": "string",
+    "description": "Normal expected maximum value for this test. May be missing if not available.",
+    "value_optional": true,
+    "validators": [
+      {
+        "name": "recommended",
+        "params": {
+          "message": "If a normal maximum is not provided, we may ask for this information at a later date."
+        }
+      }
+    ]
+  },
+  {
+    "name": "interpretation",
+    "type": "string",
+    "description": "Use to indicate an interpretation for the test result if appropriate. Also used to indicate CD4 cell count nadir and baseline HIV-1 RNA for historical data. BLQ = Below level of quantification (undetectable), ALQ = Above level of quantification.",
+    "example": "High, Low, Normal, Abnormal, nadir, baseline, BLQ, ALQ",
+    "value_optional": true,
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "resultDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Collection date of the laboratory test result."
+  },
+  {
+    "name": "source",
+    "type": "string",
+    "description": "Source of the laboratory test data.",
+    "example": "L1, L2, L3, L4, L5",
+    "summarizers": ["bar_chart"]
+  }
+]

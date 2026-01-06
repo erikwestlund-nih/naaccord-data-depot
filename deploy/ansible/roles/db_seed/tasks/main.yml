@@ -1,0 +1,85 @@
+---
+# Database seeding tasks
+# Staging: Seeds all data including test users
+# Production: Seeds core data, uses production user CSV files
+
+- name: Determine which container to use
+  ansible.builtin.shell: |
+    if docker ps --filter name=naaccord-services --format "{{ '{{' }}.Names{{ '}}' }}" | grep -q naaccord-services; then
+      echo "naaccord-services"
+    elif docker ps --filter name=naaccord-web --format "{{ '{{' }}.Names{{ '}}' }}" | grep -q naaccord-web; then
+      echo "naaccord-web"
+    else
+      echo "none"
+    fi
+  register: container_name_result
+  changed_when: false
+
+- name: Fail if no suitable container found
+  ansible.builtin.fail:
+    msg: "No naaccord-services or naaccord-web container found!"
+  when: container_name_result.stdout == "none"
+
+- name: Set container name fact
+  ansible.builtin.set_fact:
+    django_container: "{{ container_name_result.stdout }}"
+
+- name: Run database migrations
+  ansible.builtin.command: docker exec {{ django_container }} python manage.py migrate
+  register: migrate_result
+  changed_when: "'No migrations to apply' not in migrate_result.stdout"
+
+- name: Seed initial data (cohorts, data file types, protocol years, groups)
+  ansible.builtin.command: docker exec {{ django_container }} python manage.py seed_init
+  register: seed_init_result
+
+- name: Setup permission groups
+  ansible.builtin.command: docker exec {{ django_container }} python manage.py setup_permission_groups
+  register: setup_groups_result
+
+- name: Seed users (staging - test users)
+  when: naaccord_environment == 'staging'
+  block:
+    - name: Load test users from fixtures
+      ansible.builtin.command: docker exec {{ django_container }} python manage.py load_test_users --fixture-dir depot/fixtures/test_users
+      register: load_users_result
+
+    - name: Assign test users to groups
+      ansible.builtin.command: docker exec {{ django_container }} python manage.py assign_test_users_to_groups
+      register: assign_groups_result
+
+- name: Seed users (production - real users from CSV)
+  when: naaccord_environment == 'production'
+  block:
+    - name: Check if production users CSV exists
+      ansible.builtin.stat:
+        path: /opt/naaccord/depot/resources/data/seed/users_production.csv
+      register: prod_users_csv
+
+    - name: Fail if production users CSV not found
+      ansible.builtin.fail:
+        msg: |
+          Production users CSV not found!
+
+          Please create the following files from templates:
+          1. cp resources/data/seed/users_production_template.csv resources/data/seed/users_production.csv
+          2. cp resources/data/seed/user_groups_production_template.csv resources/data/seed/user_groups_production.csv
+          3. cp resources/data/seed/cohort_memberships_production_template.csv resources/data/seed/cohort_memberships_production.csv
+
+          Then edit each file with your production user information.
+      when: not prod_users_csv.stat.exists
+
+    - name: Load production users from CSV
+      ansible.builtin.command: docker exec {{ django_container }} python manage.py load_users_from_csv --csv-dir resources/data/seed
+      register: load_prod_users_result
+      when: prod_users_csv.stat.exists
+
+- name: Display seeding summary
+  ansible.builtin.debug:
+    msg:
+      - "Database seeding completed!"
+      - "Environment: {{ naaccord_environment }}"
+      - "Migrations: {{ 'Applied' if migrate_result.changed else 'Up to date' }}"
+      - "Core data seeded: ✓"
+      - "Permission groups: ✓"
+      - "Users loaded: {{ 'Test users' if naaccord_environment == 'staging' else 'Production users' }}"

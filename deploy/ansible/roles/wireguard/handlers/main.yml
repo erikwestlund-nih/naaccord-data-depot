@@ -1,0 +1,7 @@
+---
+# WireGuard handlers
+
+- name: Restart WireGuard container
+  ansible.builtin.command:
+    cmd: docker restart naaccord-wireguard-{{ 'web' if 'web' in group_names else 'services' }}
+  listen: "restart wireguard"

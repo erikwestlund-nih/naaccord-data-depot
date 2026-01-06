@@ -1,0 +1,12 @@
+```{r setup}
+#| echo: false
+
+library(duckdb)
+library(dplyr)
+library(here)
+library(knitr)
+library(kableExtra)
+library(jsonlite)
+
+source(here("depot", "R", "util.R"))
+``` 

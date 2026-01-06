@@ -1,0 +1,235 @@
+{% load static %}
+
+<c-app-page title="Upload Precheck Status">
+
+    <c-page-header 
+        heading="Upload Precheck Status" 
+        blurb="Monitor the progress of your data file validation. This page automatically updates as your file is processed and validated." 
+    />
+    {% if upload_precheck.result %}
+        {% if upload_precheck.result.result %}
+            <!-- Using nested result.result -->
+            {{ upload_precheck.result.result|json_script:"audit-result" }}
+        {% else %}
+            <!-- Using direct result -->
+            {{ upload_precheck.result|json_script:"audit-result" }}
+        {% endif %}
+    {% else %}
+        {{ "{}"|json_script:"audit-result" }}
+    {% endif %}
+    <div 
+        id="audit-status"
+        x-data="{
+            init() {
+                const initialData = JSON.parse(document.getElementById('audit-result').textContent);
+                this.status = '{{ upload_precheck.status }}';  // Use Django's status directly
+                this.auditResult = initialData;  // No need for .result.result anymore
+                this.isCompleted = ['completed', 'failed'].includes('{{ upload_precheck.status }}');  // Both completed and failed are terminal states
+                this.isFailed = '{{ upload_precheck.status }}' === 'failed' || this.auditResult?.status === 'failed';
+                this.createdAt = new Date('{{ upload_precheck.created_at|date:'c' }}');
+
+                if (!this.isCompleted) {
+                    this.startPolling();
+                }
+            },
+            status: null,
+            auditResult: null,
+            isCompleted: false,
+            isFailed: false,
+            createdAt: null,
+            get isProcessing() {
+                return !this.isCompleted && ['pending', 'processing_duckdb', 'processing_notebook'].includes(this.status);
+            },
+            formatFileSize(bytes) {
+                if (!bytes) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            },
+            getStatusMessage() {
+                if (this.auditResult?.status === 'failed') {
+                    return 'Processing failed. Please contact administrator.';
+                }
+                return this.status === 'pending' ? 'Waiting to start processing...' :
+                       this.status === 'processing_duckdb' ? 'Loading data into database for processing...' :
+                       this.status === 'processing_notebook' ? 'Generating file audit notebook...' :
+                       this.status === 'completed' ? 'Precheck completed successfully' :
+                       this.status === 'failed' ? 'Processing failed. Please contact administrator.' :
+                       'Processing your precheck request...';
+            },
+            getNotebookStatus() {
+                // The template already extracts result.result, so notebook is at auditResult.notebook
+                const notebook = this.auditResult?.notebook;
+                if (!notebook) return null;
+                return notebook.status === 'pending' ? 'Waiting to compile...' :
+                       notebook.status === 'compiling' ? 'Compiling notebook...' :
+                       notebook.status === 'completed' ? 'Notebook ready' :
+                       notebook.status === 'failed' ? 'Notebook compilation failed' :
+                       'Processing notebook...';
+            },
+            isNotebookReady() {
+                // The template already extracts result.result, so notebook is at auditResult.notebook
+                const notebook = this.auditResult?.notebook;
+                return notebook?.status === 'completed';
+            },
+            getNotebookId() {
+                // The template already extracts result.result, so notebook is at auditResult.notebook
+                const notebook = this.auditResult?.notebook;
+                return notebook?.id;
+            },
+            startPolling() {
+                const poll = () => {
+                    if (this.isCompleted) return;
+                    
+                    // Check if 5 minutes have passed
+                    const now = new Date();
+                    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+                    if (this.createdAt < fiveMinutesAgo) {
+                        return;
+                    }
+                    
+                    fetch('/upload-precheck/reports/{{ upload_precheck.id }}', {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            this.status = data.status;
+                            this.auditResult = data.result;  // Update with the result from polling
+                            this.isCompleted = ['completed', 'failed'].includes(data.status);  // Both are terminal states
+                            this.isFailed = data.status === 'failed' || data.result?.status === 'failed';
+
+                            if (!this.isCompleted) {
+                                setTimeout(poll, 2000);
+                            } else if (data.status === 'completed') {
+                                // Reload the page when audit completes to get full data
+                                window.location.reload();
+                            }
+                            // Stop polling on failure - no reload needed
+                        })
+                        .catch(error => {
+                            console.error('Error polling status:', error);
+                            setTimeout(poll, 2000);
+                        });
+                };
+                
+                poll();
+            }
+        }">
+        
+        <!-- Status Display -->
+        <div x-show="!isCompleted && !isFailed" x-cloak>
+            <c-spinner_alert variant="info">
+                <span x-text="getStatusMessage()"></span>
+            </c-spinner_alert>
+        </div>
+
+        <div x-show="isCompleted && !isFailed" x-cloak>
+            <c-flash variant="success">
+                Precheck completed successfully
+            </c-flash>
+        </div>
+
+        <div x-show="isFailed" x-cloak>
+            <c-flash variant="error" dismissible="false">
+                Processing failed. Please contact administrator.
+            </c-flash>
+        </div>
+
+        <!-- Notebook Section -->
+        <div x-show="isCompleted && !isFailed && getNotebookStatus()" x-cloak x-transition class="mt-6">
+            <c-card title="Precheck Notebook">
+            <div class="max-w-xl text-sm text-gray-500">
+                <p>
+                    <span x-show="auditResult?.notebook?.status === 'compiling'">
+                        <c-loading x-cloak class="h-4 w-4 text-red-600 inline mr-1" />
+                    </span>
+                    <span x-text="getNotebookStatus()"></span>
+                </p>
+            </div>
+            <div x-show="isNotebookReady()" class="mt-5">
+                <div class="flex items-center gap-3">
+                    <a :href="getNotebookId() ? '/notebooks/' + getNotebookId() + '/view' : '#'"
+                       class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-gray-300 ring-inset hover:bg-gray-50">
+                        <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        View Report
+                    </a>
+                    <a :href="getNotebookId() ? '/notebooks/' + getNotebookId() + '/download' : '#'"
+                       class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-gray-300 ring-inset hover:bg-gray-50">
+                        <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Download Report
+                    </a>
+                </div>
+            </div>
+            </c-card>
+        </div>
+
+        <!-- Data Summary -->
+        <div x-show="isCompleted && !isFailed" x-cloak x-transition class="mt-6">
+            <c-card title="Data Summary">
+            <dl class="grid grid-cols-1 gap-4">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Data File Type</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="auditResult?.data_file_type_label || 'Loading...'"></dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">File Size</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="auditResult?.file_size ? formatFileSize(auditResult.file_size) : 'Loading...'"></dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Total Rows</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="auditResult?.stats?.row_count ?? 'Loading...'"></dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Unique Rows</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="auditResult?.stats?.unique_rows ?? 'Loading...'"></dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Null Count</dt>
+                    <dd class="mt-1 text-sm text-gray-900" x-text="auditResult?.stats?.null_count ?? 'Loading...'"></dd>
+                </div>
+            </dl>
+            </c-card>
+        </div>
+
+        <!-- Column Information Card -->
+        <div x-show="isCompleted && !isFailed" x-cloak x-transition class="mt-6">
+            <c-card title="Column Details" variant="table">
+            <div x-show="auditResult?.stats?.columns">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-300">
+                        <thead>
+                            <tr>
+                                <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Name</th>
+                                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Type</th>
+                                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Unique Values</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <template x-for="(column, index) in auditResult?.stats?.columns || []" :key="index">
+                                <tr>
+                                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900" x-text="column.name"></td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500" x-text="column.type"></td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500" x-text="auditResult?.stats?.column_stats?.[column.name]?.unique_values || 0"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Loading placeholder for columns -->
+            <div x-show="!auditResult?.stats?.columns" class="px-4 py-5 sm:p-6">
+                <div class="text-sm text-gray-500">Loading column information...</div>
+            </div>
+            </c-card>
+        </div>
+    </div>
+</c-app-page> 

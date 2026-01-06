@@ -1,0 +1,24 @@
+```{r}
+#| echo: false
+#| results: asis
+
+# Get validation rules for this variable
+
+
+if (!is.null(var_def$validation)) {
+  cat("### Validation Rules\n\n")
+  
+  # Display validation rules in a table
+  validation_rules <- data.frame(
+    Rule = names(var_def$validation),
+    Value = sapply(var_def$validation, function(x) {
+      if (is.list(x)) paste(names(x), x, collapse = ", ") else as.character(x)
+    }),
+    stringsAsFactors = FALSE
+  )
+  
+  print(kable(validation_rules) |>
+    kable_styling(bootstrap_options = c("hover")))
+  
+  cat("\n")
+} 

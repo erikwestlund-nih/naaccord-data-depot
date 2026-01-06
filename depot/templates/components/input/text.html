@@ -1,0 +1,22 @@
+<c-vars name label value errors container_attrs class attrs x_model />
+
+{% with value=value|stringformat:"s" %}
+    <div {{ container_attrs|default:"" }}>
+        {% if label %}
+            <c-label :name="name" :label="label" :errors="errors" />
+        {% endif %}
+
+        <div class="mt-2">
+            <input
+                id="{{ name }}"
+                name="{{ name }}"
+                value="{{ value|default_if_none:"" }}"
+                {% if x_model %}x-model="{{ x_model }}"{% endif %}
+                {{ attrs }}
+                class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-blue-700 sm:text-sm/6 {{ class }}"
+            >
+        </div>
+
+        <c-error :errors="errors" :name="name" class="mt-1.5" />
+    </div>
+{% endwith %}

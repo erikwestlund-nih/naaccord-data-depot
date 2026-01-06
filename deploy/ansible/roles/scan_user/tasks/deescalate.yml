@@ -1,0 +1,40 @@
+---
+# Deescalate scan support user from superuser/admin back to normal user
+
+- name: Deescalate scan user from superuser
+  become: true
+  become_user: naaccord
+  ansible.builtin.command:
+    cmd: >
+      docker exec naaccord-services
+      python manage.py deescalate_scan_user
+      --jhed {{ scan_user_jhed }}
+  register: deescalate_result
+  changed_when: "'✓ USER DEESCALATED TO NORMAL USER' in deescalate_result.stdout"
+  failed_when: deescalate_result.rc != 0
+  tags:
+    - scan_user
+    - scan_user_deescalate
+
+- name: Display deescalation output
+  ansible.builtin.debug:
+    msg: "{{ deescalate_result.stdout_lines }}"
+  tags:
+    - scan_user
+    - scan_user_deescalate
+
+- name: Save deescalation timestamp
+  ansible.builtin.set_fact:
+    scan_user_deescalated_at: "{{ ansible_date_time.iso8601 }}"
+  tags:
+    - scan_user
+    - scan_user_deescalate
+
+- name: Confirm normal user status
+  ansible.builtin.debug:
+    msg:
+      - "✅ Scan user has been returned to normal user permissions"
+      - "✅ User no longer has admin or staff access"
+  tags:
+    - scan_user
+    - scan_user_deescalate

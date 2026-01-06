@@ -1,0 +1,101 @@
+---
+# Common package installation
+- name: Install EPEL repository
+  ansible.builtin.dnf:
+    name: epel-release
+    state: present
+  tags:
+    - base
+    - packages
+
+- name: Install essential development tools
+  ansible.builtin.dnf:
+    name:
+      - git
+      - curl
+      - wget
+      - vim
+      - nano
+    state: present
+  tags:
+    - base
+    - packages
+
+- name: Install system monitoring tools
+  ansible.builtin.dnf:
+    name:
+      - htop
+      - btop
+      - ncdu
+      - tree
+      - iotop
+      - sysstat
+    state: present
+  tags:
+    - base
+    - packages
+
+- name: Install Python tools
+  ansible.builtin.dnf:
+    name:
+      - python3
+      - python3-pip
+      - python3-devel
+    state: present
+  tags:
+    - base
+    - packages
+
+- name: Install networking and storage tools
+  ansible.builtin.dnf:
+    name:
+      - cifs-utils
+      - nfs-utils
+      - rsync
+    state: present
+  tags:
+    - base
+    - packages
+
+- name: Install JSON and text processing tools
+  ansible.builtin.dnf:
+    name:
+      - jq
+      - yq
+    state: present
+  tags:
+    - base
+    - packages
+
+- name: Install terminal multiplexers
+  ansible.builtin.dnf:
+    name:
+      - tmux
+      - screen
+    state: present
+  tags:
+    - base
+    - packages
+
+- name: Install additional utilities
+  ansible.builtin.dnf:
+    name:
+      - vim-enhanced
+      - bash-completion
+      - bind-utils
+      - net-tools
+      - telnet
+    state: present
+  tags:
+    - base
+    - packages
+
+- name: Upgrade pip
+  ansible.builtin.command:
+    cmd: /usr/bin/pip3 install --upgrade pip
+  register: pip_upgrade
+  changed_when: "'Successfully installed' in pip_upgrade.stdout"
+  failed_when: false  # Don't fail if pip upgrade has issues - not critical for containers
+  tags:
+    - base
+    - packages

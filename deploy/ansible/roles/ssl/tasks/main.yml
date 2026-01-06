@@ -1,0 +1,16 @@
+---
+# SSL/TLS certificate management role
+# Supports: none (staging/NPM proxy), manual (production/JHU IT)
+
+- name: Skip SSL configuration (external proxy handles it)
+  ansible.builtin.debug:
+    msg: "SSL disabled - external proxy (NPM) handles SSL termination"
+  when: ssl_provider == 'none' or not ssl_enabled | default(true)
+  tags: ['ssl']
+
+- name: Deploy JHU IT certificates from vault
+  ansible.builtin.include_tasks: manual_certs.yml
+  when:
+    - ssl_provider == 'manual'
+    - ssl_enabled | default(true)
+  tags: ['ssl', 'manual']

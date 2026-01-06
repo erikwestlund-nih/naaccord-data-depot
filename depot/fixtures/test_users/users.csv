@@ -1,0 +1,10 @@
+username,email,first_name,last_name,is_staff,is_superuser
+va_admin,admin@va.gov,VA,Admin,True,False
+jh_researcher,admin@jh.edu,JH,Researcher,False,False
+ucsd_user,user@ucsd.edu,UCSD,User,False,False
+case_user,user@case.edu,Case,User,False,False
+uab_user,user@uab.edu,UAB,User,False,False
+test_admin,admin@test.edu,Test,Admin,True,True
+test_researcher,researcher@test.edu,Test,Researcher,False,False
+test_coordinator,coordinator@test.edu,Test,Coordinator,False,False
+test_viewer,viewer@test.edu,Test,Viewer,False,False

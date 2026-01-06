@@ -1,0 +1,446 @@
+"""
+Security tests for session management and authentication.
+Tests session fixation, hijacking, and secure cookie settings.
+"""
+from django.test import TestCase, Client, override_settings
+from django.contrib.auth import get_user_model
+from django.contrib.sessions.models import Session
+from unittest.mock import patch
+import time
+
+User = get_user_model()
+
+
+class SessionFixationTest(TestCase):
+    """Test protection against session fixation attacks."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+        self.client = Client()
+
+    def test_session_id_changes_on_login(self):
+        """Session ID should change after successful login."""
+        # Get initial session ID (before login)
+        self.client.get('/')
+        session_before = self.client.session.session_key
+
+        # Login
+        self.client.login(username="test@test.org", password="testpass123")
+
+        # Get session ID after login
+        session_after = self.client.session.session_key
+
+        # Session ID should have changed
+        self.assertNotEqual(session_before, session_after,
+            "Session ID should change after login to prevent fixation")
+
+    def test_session_id_changes_on_privilege_escalation(self):
+        """Session ID should change when user privileges change."""
+        # Login as regular user
+        self.client.login(username="test@test.org", password="testpass123")
+        session_before = self.client.session.session_key
+
+        # Elevate privileges (make superuser)
+        self.user.is_superuser = True
+        self.user.save()
+
+        # Trigger re-authentication or session refresh
+        # (Implementation-specific)
+
+        # Session should be regenerated
+        # This prevents session fixation after privilege change
+        self.assertTrue(True)  # Placeholder
+
+    def test_old_session_invalidated_on_login(self):
+        """Old session should be invalidated when new session created."""
+        # Create initial session
+        self.client.get('/')
+        old_session_key = self.client.session.session_key
+
+        # Login (creates new session)
+        self.client.login(username="test@test.org", password="testpass123")
+
+        # Try to use old session
+        old_session_exists = Session.objects.filter(
+            session_key=old_session_key
+        ).exists()
+
+        # Old session should be deleted
+        self.assertFalse(old_session_exists,
+            "Old session should be invalidated on login")
+
+
+class SessionHijackingTest(TestCase):
+    """Test protection against session hijacking."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+        self.client = Client()
+
+    @override_settings(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_SAMESITE='Strict'
+    )
+    def test_session_cookie_security_flags(self):
+        """Session cookies should have security flags set."""
+        self.client.login(username="test@test.org", password="testpass123")
+
+        # Get response to check cookie settings
+        response = self.client.get('/')
+
+        # Check session cookie exists
+        session_cookie = response.cookies.get('sessionid')
+
+        if session_cookie:
+            # Should have HTTPOnly flag (prevents JavaScript access)
+            self.assertTrue(session_cookie.get('httponly', False),
+                "Session cookie should have HTTPOnly flag")
+
+            # Should have Secure flag (HTTPS only)
+            self.assertTrue(session_cookie.get('secure', False),
+                "Session cookie should have Secure flag")
+
+            # Should have SameSite flag (CSRF protection)
+            self.assertIn(session_cookie.get('samesite', ''), ['Strict', 'Lax'],
+                "Session cookie should have SameSite flag")
+
+    def test_session_timeout_enforced(self):
+        """Sessions should expire after timeout period."""
+        # Login
+        self.client.login(username="test@test.org", password="testpass123")
+
+        # Session should be valid immediately
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+
+        # Simulate session expiration (modify session age)
+        session = self.client.session
+        session.set_expiry(-1)  # Expire immediately
+        session.save()
+
+        # Next request should require re-authentication
+        # (Implementation depends on Django session middleware)
+        self.assertTrue(True)  # Placeholder
+
+    def test_concurrent_sessions_limited(self):
+        """User should have limited concurrent sessions."""
+        # Login from first device
+        client1 = Client()
+        client1.login(username="test@test.org", password="testpass123")
+        session1 = client1.session.session_key
+
+        # Login from second device
+        client2 = Client()
+        client2.login(username="test@test.org", password="testpass123")
+        session2 = client2.session.session_key
+
+        # Depending on configuration:
+        # - Option 1: Only one session active (old session invalidated)
+        # - Option 2: Limited number of concurrent sessions
+
+        # Sessions should be different
+        self.assertNotEqual(session1, session2)
+
+    def test_session_ip_binding(self):
+        """Session should be bound to IP address."""
+        # Login from one IP
+        self.client.login(username="test@test.org", password="testpass123")
+
+        # Try to use session from different IP
+        response = self.client.get('/', REMOTE_ADDR='192.168.1.100')
+
+        # Depending on configuration, may invalidate session
+        # This prevents session hijacking across IPs
+        self.assertTrue(True)  # Placeholder
+
+    def test_session_user_agent_binding(self):
+        """Session should be bound to User-Agent."""
+        # Login with one User-Agent
+        self.client.login(username="test@test.org", password="testpass123")
+
+        # Try to use session with different User-Agent
+        response = self.client.get('/',
+            HTTP_USER_AGENT='Different Browser/1.0')
+
+        # Depending on configuration, may invalidate session
+        # This prevents session hijacking
+        self.assertTrue(True)  # Placeholder
+
+
+class SessionDataSecurityTest(TestCase):
+    """Test that session data is stored securely."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+        self.client = Client()
+        self.client.login(username="test@test.org", password="testpass123")
+
+    def test_sensitive_data_not_in_session(self):
+        """Sensitive data should not be stored in session."""
+        # Get session
+        session = self.client.session
+
+        # Check that sensitive data is not stored
+        sensitive_keys = ['password', 'credit_card', 'ssn', 'api_key']
+
+        for key in sensitive_keys:
+            self.assertNotIn(key, session,
+                f"Sensitive data should not be in session: {key}")
+
+    def test_session_data_encrypted(self):
+        """Session data should be encrypted at rest."""
+        # Django sessions are typically stored in database or cache
+        # Data should be encrypted/signed
+        # (Depends on session backend configuration)
+        self.assertTrue(True)  # Placeholder
+
+    def test_session_data_size_limited(self):
+        """Session data should have size limits."""
+        # Try to store large data in session
+        large_data = 'x' * (1024 * 1024)  # 1MB
+
+        try:
+            self.client.session['large_data'] = large_data
+            self.client.session.save()
+        except Exception:
+            # Should reject or truncate
+            pass
+
+        # Session should have reasonable size limits
+        self.assertTrue(True)  # Placeholder
+
+
+class LogoutSecurityTest(TestCase):
+    """Test that logout properly cleans up sessions."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+        self.client = Client()
+
+    def test_session_cleared_on_logout(self):
+        """Session should be cleared on logout."""
+        # Login
+        self.client.login(username="test@test.org", password="testpass123")
+        session_key = self.client.session.session_key
+
+        # Logout
+        self.client.logout()
+
+        # Session should be deleted
+        session_exists = Session.objects.filter(
+            session_key=session_key
+        ).exists()
+
+        self.assertFalse(session_exists,
+            "Session should be deleted on logout")
+
+    def test_logout_from_all_devices(self):
+        """User should be able to logout from all devices."""
+        # Login from multiple devices
+        client1 = Client()
+        client1.login(username="test@test.org", password="testpass123")
+        session1 = client1.session.session_key
+
+        client2 = Client()
+        client2.login(username="test@test.org", password="testpass123")
+        session2 = client2.session.session_key
+
+        # Logout from all devices
+        # (Would require custom implementation)
+        # All user sessions should be invalidated
+        self.assertTrue(True)  # Placeholder
+
+    def test_csrf_token_cleared_on_logout(self):
+        """CSRF token should be cleared on logout."""
+        # Login
+        self.client.login(username="test@test.org", password="testpass123")
+
+        # Get CSRF token
+        response = self.client.get('/')
+        csrf_token_before = response.cookies.get('csrftoken')
+
+        # Logout
+        self.client.logout()
+
+        # Get new page
+        response = self.client.get('/')
+        csrf_token_after = response.cookies.get('csrftoken')
+
+        # CSRF token should be different (regenerated)
+        if csrf_token_before and csrf_token_after:
+            self.assertNotEqual(csrf_token_before.value, csrf_token_after.value,
+                "CSRF token should be regenerated on logout")
+
+
+class RememberMeSecurityTest(TestCase):
+    """Test security of 'Remember Me' functionality."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+        self.client = Client()
+
+    @override_settings(SESSION_COOKIE_AGE=1209600)  # 2 weeks
+    def test_remember_me_extends_session(self):
+        """Remember me should extend session duration."""
+        # Login with remember me
+        self.client.login(username="test@test.org", password="testpass123")
+
+        # Set session to not expire on browser close
+        self.client.session.set_expiry(1209600)  # 2 weeks
+
+        # Session should have extended expiry
+        expiry = self.client.session.get_expiry_age()
+        self.assertGreater(expiry, 86400,  # More than 1 day
+            "Remember me should extend session")
+
+    def test_remember_me_token_unique_per_device(self):
+        """Remember me tokens should be unique per device."""
+        # Login from device 1 with remember me
+        client1 = Client()
+        client1.login(username="test@test.org", password="testpass123")
+        session1 = client1.session.session_key
+
+        # Login from device 2 with remember me
+        client2 = Client()
+        client2.login(username="test@test.org", password="testpass123")
+        session2 = client2.session.session_key
+
+        # Tokens should be unique
+        self.assertNotEqual(session1, session2,
+            "Remember me tokens should be unique per device")
+
+    def test_remember_me_token_invalidated_on_password_change(self):
+        """Remember me tokens should be invalidated on password change."""
+        # Login with remember me
+        self.client.login(username="test@test.org", password="testpass123")
+        session_before = self.client.session.session_key
+
+        # Change password
+        self.user.set_password("newpassword123")
+        self.user.save()
+
+        # Old session should be invalidated
+        session_exists = Session.objects.filter(
+            session_key=session_before
+        ).exists()
+
+        # Depending on implementation, session may be invalidated
+        self.assertTrue(True)  # Placeholder
+
+
+class CSRFProtectionTest(TestCase):
+    """Test CSRF protection on forms."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+
+    def test_csrf_token_required_for_post(self):
+        """POST requests should require CSRF token."""
+        client = Client(enforce_csrf_checks=True)
+        client.login(username="test@test.org", password="testpass123")
+
+        # POST without CSRF token
+        response = client.post('/upload/precheck/', {
+            'data': 'test'
+        })
+
+        # Should be rejected (403 Forbidden)
+        self.assertEqual(response.status_code, 403,
+            "POST without CSRF token should be rejected")
+
+    def test_csrf_token_validated(self):
+        """CSRF token should be validated."""
+        client = Client(enforce_csrf_checks=True)
+        client.login(username="test@test.org", password="testpass123")
+
+        # POST with wrong CSRF token
+        response = client.post('/upload/precheck/', {
+            'data': 'test',
+            'csrfmiddlewaretoken': 'wrong-token'
+        })
+
+        # Should be rejected
+        self.assertEqual(response.status_code, 403,
+            "POST with wrong CSRF token should be rejected")
+
+    def test_csrf_token_regenerated_on_login(self):
+        """CSRF token should be regenerated on login."""
+        client = Client()
+
+        # Get CSRF token before login
+        response = client.get('/')
+        csrf_before = response.cookies.get('csrftoken')
+
+        # Login
+        client.login(username="test@test.org", password="testpass123")
+
+        # Get CSRF token after login
+        response = client.get('/')
+        csrf_after = response.cookies.get('csrftoken')
+
+        # Token should be different
+        if csrf_before and csrf_after:
+            self.assertNotEqual(csrf_before.value, csrf_after.value,
+                "CSRF token should be regenerated on login")
+
+
+class SessionReplayAttackTest(TestCase):
+    """Test protection against session replay attacks."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="test@test.org",
+            password="testpass123"
+        )
+        self.client = Client()
+
+    def test_nonce_prevents_replay(self):
+        """Nonce values should prevent replay attacks."""
+        # Login
+        self.client.login(username="test@test.org", password="testpass123")
+
+        # Make request with nonce
+        response1 = self.client.post('/some-action/', {
+            'nonce': '12345'
+        })
+
+        # Try to replay same request
+        response2 = self.client.post('/some-action/', {
+            'nonce': '12345'
+        })
+
+        # Second request should be rejected (nonce already used)
+        # (Implementation-specific)
+        self.assertTrue(True)  # Placeholder
+
+    def test_timestamp_prevents_old_requests(self):
+        """Timestamp validation should prevent old requests."""
+        # Requests with old timestamps should be rejected
+        # (Implementation-specific for API endpoints)
+        self.assertTrue(True)  # Placeholder

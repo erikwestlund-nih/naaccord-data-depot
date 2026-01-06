@@ -1,0 +1,103 @@
+---
+# Playbook for managing Acunetix security scan user
+#
+# This playbook manages the lifecycle of the security scan support user
+# through four distinct actions:
+#
+# 1. CREATE - Creates user with normal permissions in "Scan Support" cohort
+# 2. ESCALATE - Grants superuser/admin privileges for admin-level security scan
+# 3. DEESCALATE - Removes admin privileges, returns to normal user
+# 4. REMOVE - Permanently deletes user (and optionally the cohort)
+#
+# Usage Examples:
+#
+#   # Create scan user (first security scan - normal permissions)
+#   ansible-playbook -i inventories/staging/hosts.yml playbooks/scan-user.yml \
+#     -e 'scan_user_action=create' --connection local
+#
+#   # Escalate to superuser (second security scan - admin permissions)
+#   ansible-playbook -i inventories/staging/hosts.yml playbooks/scan-user.yml \
+#     -e 'scan_user_action=escalate' --connection local
+#
+#   # Deescalate back to normal user (after second scan)
+#   ansible-playbook -i inventories/staging/hosts.yml playbooks/scan-user.yml \
+#     -e 'scan_user_action=deescalate' --connection local
+#
+#   # Remove user completely (when all scanning is done)
+#   ansible-playbook -i inventories/staging/hosts.yml playbooks/scan-user.yml \
+#     -e 'scan_user_action=remove' --connection local
+#
+#   # Remove user AND cohort (with confirmation skip for automation)
+#   ansible-playbook -i inventories/staging/hosts.yml playbooks/scan-user.yml \
+#     -e 'scan_user_action=remove' \
+#     -e 'scan_user_remove_cohort=true' \
+#     -e 'scan_user_skip_confirmation=true' \
+#     --connection local
+#
+# Production Usage:
+#   ansible-playbook -i inventories/production/hosts.yml playbooks/scan-user.yml \
+#     -e 'scan_user_action=create' --connection local --ask-vault-pass
+#
+# Required Variable:
+#   scan_user_action: One of 'create', 'escalate', 'deescalate', or 'remove'
+#
+# Optional Variables:
+#   scan_user_jhed: JHED username (default: ssuppor2)
+#   scan_user_email: Email address (default: ssuppor2@jh.edu)
+#   scan_user_first_name: First name (default: Scan)
+#   scan_user_last_name: Last name (default: Support)
+#   scan_user_remove_cohort: Also remove cohort on deletion (default: false)
+#   scan_user_skip_confirmation: Skip confirmation prompts (default: false)
+
+- name: Manage Acunetix security scan user
+  hosts: services
+  gather_facts: true
+  vars:
+    # Required variable - must be passed via command line
+    # Valid values: create, escalate, deescalate, remove
+    scan_user_action: "{{ scan_user_action | default('') }}"
+
+  pre_tasks:
+    - name: Validate scan_user_action variable
+      ansible.builtin.fail:
+        msg: |
+          ERROR: scan_user_action is required.
+
+          Valid values: create, escalate, deescalate, remove
+
+          Usage:
+            ansible-playbook playbooks/scan-user.yml -e 'scan_user_action=create'
+      when: scan_user_action not in ['create', 'escalate', 'deescalate', 'remove']
+      tags:
+        - always
+
+    - name: Display action being performed
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Scan User Management"
+          - "=========================================="
+          - "Action: {{ scan_user_action | upper }}"
+          - "JHED: {{ scan_user_jhed | default('ssuppor2') }}"
+          - "Environment: {{ inventory_hostname }}"
+          - "=========================================="
+      tags:
+        - always
+
+  roles:
+    - role: scan_user
+      tags:
+        - scan_user
+
+  post_tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Scan User Management Complete"
+          - "=========================================="
+          - "Action: {{ scan_user_action | upper }}"
+          - "Status: {{ 'SUCCESS' if ansible_failed_result is not defined else 'FAILED' }}"
+          - "=========================================="
+      tags:
+        - always

@@ -1,0 +1,122 @@
+---
+# NAS mount role - Mount NAS storage for PHI files
+# Supports two modes:
+#   nas_type: samba - Mount Samba/CIFS share via Ansible
+#   nas_type: premounted - Assume IT has already mounted, just verify and create directories
+
+- name: Install CIFS utilities
+  ansible.builtin.dnf:
+    name: cifs-utils
+    state: present
+  when: nas_type == 'samba'
+  tags: ['nas', 'storage']
+
+- name: Create NAS mount point directory
+  ansible.builtin.file:
+    path: "{{ nas_mount_point }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  tags: ['nas', 'storage']
+
+- name: Check if NAS is already mounted
+  ansible.builtin.command: mountpoint -q {{ nas_mount_point }}
+  register: nas_mounted
+  changed_when: false
+  failed_when: false
+  tags: ['nas', 'storage']
+
+- name: Debug NAS mount status
+  ansible.builtin.debug:
+    msg: "NAS mount check - rc: {{ nas_mounted.rc }}, stdout: {{ nas_mounted.stdout }}, stderr: {{ nas_mounted.stderr }}"
+  tags: ['nas', 'storage']
+
+- name: Create credentials file for NAS (Samba mode only)
+  ansible.builtin.copy:
+    content: |
+      username={{ nas_username }}
+      password={{ nas_password }}
+      domain={{ nas_domain | default('') }}
+    dest: /root/.nas_credentials
+    mode: '0600'
+    owner: root
+    group: root
+  when:
+    - nas_type == 'samba'
+    - nas_username | length > 0
+    - nas_password | length > 0
+  no_log: true
+  tags: ['nas', 'storage']
+
+- name: Mount NAS share (Samba mode only)
+  ansible.posix.mount:
+    path: "{{ nas_mount_point }}"
+    src: "//{{ nas_host }}/{{ nas_share }}"
+    fstype: cifs
+    opts: "{{ nas_mount_options }},credentials=/root/.nas_credentials"
+    state: mounted
+  when:
+    - nas_type == 'samba'
+    - nas_username | length > 0
+    - nas_password | length > 0
+  tags: ['nas', 'storage']
+
+- name: Display NAS mount status (Samba mode)
+  ansible.builtin.debug:
+    msg: "NAS mount configured. Credentials required for actual mount. Use vault to provide nas_username and nas_password."
+  when:
+    - nas_type == 'samba'
+    - (nas_username | length == 0 or nas_password | length == 0)
+  tags: ['nas', 'storage']
+
+- name: Display NAS status (Premounted mode)
+  ansible.builtin.debug:
+    msg: "NAS type is 'premounted' - assuming IT has mounted at {{ nas_mount_point }}. Will verify mount and create directories."
+  when: nas_type == 'premounted'
+  tags: ['nas', 'storage']
+
+- name: Verify NAS mount exists (Premounted mode)
+  ansible.builtin.stat:
+    path: "{{ nas_mount_point }}"
+  register: nas_mount_exists
+  when: nas_type == 'premounted'
+  tags: ['nas', 'storage']
+
+- name: Fail if NAS not mounted (Premounted mode)
+  ansible.builtin.fail:
+    msg: "NAS mount point {{ nas_mount_point }} does not exist! IT must mount the NAS before running this playbook."
+  when:
+    - nas_type == 'premounted'
+    - not nas_mount_exists.stat.exists
+  tags: ['nas', 'storage']
+
+- name: Create NAS directory structure for application
+  ansible.builtin.file:
+    path: "{{ nas_mount_point }}/{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - uploads
+    - submissions
+    - reports
+    - workspace
+    - workspace/phi_workspace
+  when: nas_mounted.rc == 0 or nas_type == 'premounted'
+  tags: ['nas', 'storage', 'structure']
+
+- name: Set NAS directory ownership for Docker containers (user 1000:1000)
+  ansible.builtin.file:
+    path: "{{ nas_mount_point }}/{{ item }}"
+    state: directory
+    owner: 1000
+    group: 1000
+    mode: '0775'
+    recurse: yes
+  loop:
+    - uploads
+    - submissions
+    - reports
+    - workspace
+  when: nas_mounted.rc == 0 or nas_type == 'premounted'
+  tags: ['nas', 'storage', 'permissions']

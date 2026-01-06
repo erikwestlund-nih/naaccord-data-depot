@@ -1,0 +1,11 @@
+<div class="py-1 sm:grid sm:grid-cols-3 sm:gap-4">
+    <dt class="text-sm/6">
+        <span class="{% if subtle %} font-medium text-gray-700 {% else %} font-semibold text-gray-900 {% endif %} ">{{ name }}</span>
+        {% if value_type %}
+            <span class="pl-1 text-gray-400 text-xs-plus">{{ value_type }}</span>
+        {% endif %}
+    </dt>
+    <dd class="mt-1 text-xs/6 text-gray-700 sm:col-span-2 sm:mt-0">
+        {% slot "body" default %}  {% endslot %}
+    </dd>
+</div>

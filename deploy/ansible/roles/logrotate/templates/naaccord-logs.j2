@@ -1,0 +1,17 @@
+# NA-ACCORD application log rotation
+# Managed by Ansible - do not edit manually
+
+{{ naaccord_log_dir }}/*.log {
+    daily
+    rotate {{ naaccord_log_rotation_count }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 root root
+    sharedscripts
+    postrotate
+        # Signal Docker to reopen log files if writing directly to files
+        systemctl reload docker > /dev/null 2>&1 || true
+    endscript
+}

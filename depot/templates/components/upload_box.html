@@ -1,0 +1,19 @@
+<c-vars id="file-upload" name="file" accept=".csv,.txt" multiple="false" />
+
+<label for="{{ id }}" class="block cursor-pointer">
+    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 hover:bg-gray-50 transition-colors">
+        <c-icon icon="cloud-upload-alt" family="solid" class="mx-auto h-12 w-12 text-gray-400" />
+        <p class="mt-2 text-sm text-gray-600">
+            <span class="font-medium text-blue-600 hover:text-blue-500">
+                {{ slot|default:"Click to select a file" }}
+            </span>
+        </p>
+        <p class="text-xs text-gray-500">CSV or TXT files only</p>
+    </div>
+    <input id="{{ id }}" 
+           name="{{ name }}" 
+           type="file" 
+           class="hidden" 
+           accept="{{ accept }}"
+           {% if multiple == "true" %}multiple{% endif %}>
+</label>

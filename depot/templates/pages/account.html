@@ -1,0 +1,191 @@
+{% extends "layouts/app.html" %}
+
+{% block title %}Account - {{ request.user.get_full_name|default:request.user.email }}{% endblock %}
+
+{% block body %}
+<div class="mx-auto max-w-4xl py-8">
+    <c-page-header 
+        heading="{{ request.user.get_full_name|default:request.user.email }}" 
+        blurb="Manage your account information and settings. View your cohort memberships and personal details." 
+    />
+
+    <!-- Account Information Card -->
+    <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+        <div class="px-4 py-6 sm:px-6">
+            <h3 class="text-base font-semibold text-gray-900">Account Information</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">Personal details and cohort memberships.</p>
+        </div>
+        <div class="border-t border-gray-100">
+            <dl class="divide-y divide-gray-100">
+                <div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-900">Full name</dt>
+                    <dd class="mt-1 text-sm text-gray-700 sm:col-span-2 sm:mt-0">
+                        {{ request.user.get_full_name|default:"Not set" }}
+                    </dd>
+                </div>
+                <div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-900">Email address</dt>
+                    <dd class="mt-1 text-sm text-gray-700 sm:col-span-2 sm:mt-0">{{ request.user.email }}</dd>
+                </div>
+                <div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-900">Username</dt>
+                    <dd class="mt-1 text-sm text-gray-700 sm:col-span-2 sm:mt-0">{{ request.user.username }}</dd>
+                </div>
+                <div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-900">Member since</dt>
+                    <dd class="mt-1 text-sm text-gray-700 sm:col-span-2 sm:mt-0">
+                        {{ request.user.date_joined|date:"F j, Y" }}
+                    </dd>
+                </div>
+                <div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-900">Last login</dt>
+                    <dd class="mt-1 text-sm text-gray-700 sm:col-span-2 sm:mt-0">
+                        {{ request.user.last_login|date:"F j, Y g:i A" }}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    <!-- Cohort Memberships Card -->
+    <div class="mt-6 overflow-hidden bg-white shadow-sm sm:rounded-lg">
+        <div class="px-4 py-6 sm:px-6">
+            <h3 class="text-base font-semibold text-gray-900">Cohort Memberships</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">Cohorts you have access to.</p>
+        </div>
+        <div class="border-t border-gray-100">
+            <div class="px-4 py-6 sm:px-6">
+                {% if request.user.cohorts.exists %}
+                    <ul role="list" class="divide-y divide-gray-100 rounded-md border border-gray-200">
+                        {% for cohort in request.user.cohorts.all %}
+                        <li class="flex items-center justify-between py-4 px-4 text-sm">
+                            <div class="flex w-0 flex-1 items-center">
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                                    <span class="text-sm font-medium text-blue-600">{{ cohort.name|slice:":2"|upper }}</span>
+                                </div>
+                                <div class="ml-4 flex min-w-0 flex-1 gap-2">
+                                    <span class="truncate font-medium text-gray-900">{{ cohort.name }}</span>
+                                    {% if cohort.description %}
+                                        <span class="shrink-0 text-gray-400">{{ cohort.description|truncatechars:50 }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="ml-4 shrink-0">
+                                <a href="{% url 'cohort_detail' cohort.id %}" class="font-medium text-blue-600 hover:text-blue-500">
+                                    View cohort
+                                </a>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-sm text-gray-500">You are not a member of any cohorts.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Role & Permissions Card (only for superusers) -->
+    {% if request.user.is_superuser %}
+    <div class="mt-6 overflow-hidden bg-white shadow-sm sm:rounded-lg">
+        <div class="px-4 py-6 sm:px-6">
+            <h3 class="text-base font-semibold text-gray-900">Role & Permissions</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">Administrative access and group memberships.</p>
+        </div>
+        <div class="border-t border-gray-100">
+            <dl class="divide-y divide-gray-100">
+                <div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-900">Groups</dt>
+                    <dd class="mt-1 text-sm text-gray-700 sm:col-span-2 sm:mt-0">
+                        {% if request.user.groups.exists %}
+                            <div class="flex flex-wrap gap-2">
+                                {% for group in request.user.groups.all %}
+                                    <span class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                                        {{ group.name }}
+                                    </span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <span class="text-gray-500">No groups assigned</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-900">System Access</dt>
+                    <dd class="mt-1 text-sm text-gray-700 sm:col-span-2 sm:mt-0">
+                        <div class="space-y-1">
+                            {% if request.user.is_superuser %}
+                                <div class="flex items-center">
+                                    <c-icon icon="check-circle" class="h-5 w-5 text-green-500 mr-2" />
+                                    <span>Superuser access</span>
+                                </div>
+                            {% endif %}
+                            {% if request.user.is_staff %}
+                                <div class="flex items-center">
+                                    <c-icon icon="check-circle" class="h-5 w-5 text-green-500 mr-2" />
+                                    <span>Django admin access</span>
+                                </div>
+                            {% endif %}
+                            {% if request.user.is_na_accord_admin %}
+                                <div class="flex items-center">
+                                    <c-icon icon="check-circle" class="h-5 w-5 text-green-500 mr-2" />
+                                    <span>NA Accord Administrator</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+    {% else %}
+    <!-- Role Card for non-superusers -->
+    <div class="mt-6 overflow-hidden bg-white shadow-sm sm:rounded-lg">
+        <div class="px-4 py-6 sm:px-6">
+            <h3 class="text-base font-semibold text-gray-900">Your Role</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">Access level and permissions.</p>
+        </div>
+        <div class="border-t border-gray-100">
+            <div class="px-4 py-6 sm:px-6">
+                {% if request.user.groups.exists %}
+                    <div class="flex flex-wrap gap-2">
+                        {% for group in request.user.groups.all %}
+                            {% if group.name == "Cohort Managers" %}
+                            <span class="inline-flex items-center rounded-md bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-700/10">
+                                <c-icon icon="user-group" class="h-4 w-4 mr-2" />
+                                {{ group.name }}
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700 ring-1 ring-inset ring-red-700/10">
+                                <c-icon icon="user-group" class="h-4 w-4 mr-2" />
+                                {{ group.name }}
+                            </span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <span class="text-sm text-gray-500">Standard user account</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Activity Card -->
+    <div class="mt-6 overflow-hidden bg-white shadow-sm sm:rounded-lg">
+        <div class="px-4 py-6 sm:px-6">
+            <h3 class="text-base font-semibold text-gray-900">Recent Activity</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">Your last 10 activities in the system.</p>
+        </div>
+        <div class="border-t border-gray-100">
+            <div class="px-4 py-6 sm:px-6">
+                {% if recent_activities %}
+                    <c-activity_feed :activities="recent_activities" show_cohort="false" />
+                {% else %}
+                    <p class="text-sm text-gray-500">No recent activity to display.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

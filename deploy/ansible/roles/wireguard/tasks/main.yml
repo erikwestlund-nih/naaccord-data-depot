@@ -1,0 +1,106 @@
+---
+# WireGuard role - Configure WireGuard tunnel and routing
+
+- name: Install WireGuard tools
+  ansible.builtin.dnf:
+    name:
+      - wireguard-tools
+    state: present
+  tags: ['wireguard', 'network']
+
+- name: Check if WireGuard kernel module is available
+  ansible.builtin.command:
+    cmd: modinfo wireguard
+  register: wireguard_module_check
+  changed_when: false
+  failed_when: false
+  tags: ['wireguard', 'network']
+
+- name: Load WireGuard kernel module (if available)
+  community.general.modprobe:
+    name: wireguard
+    state: present
+  when: wireguard_module_check.rc == 0
+  tags: ['wireguard', 'network']
+
+- name: Display WireGuard module status
+  ansible.builtin.debug:
+    msg: "{{ 'WireGuard module loaded' if wireguard_module_check.rc == 0 else 'WireGuard built into kernel (5.6+)' }}"
+  tags: ['wireguard', 'network']
+
+- name: Enable IP forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+    sysctl_set: yes
+    reload: yes
+  tags: ['wireguard', 'network']
+
+- name: Enable source valid mark
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.all.src_valid_mark
+    value: '1'
+    state: present
+    sysctl_set: yes
+    reload: yes
+  tags: ['wireguard', 'network']
+
+- name: Verify /dev/net/tun exists
+  ansible.builtin.stat:
+    path: /dev/net/tun
+  register: tun_device
+  failed_when: not tun_device.stat.exists
+  tags: ['wireguard', 'verify']
+
+- name: Wait for WireGuard container to be healthy
+  ansible.builtin.command:
+    cmd: >
+      docker inspect
+      --format='{% raw %}{{.State.Health.Status}}{% endraw %}'
+      naaccord-wireguard-{{ 'web' if 'web' in group_names else 'services' }}
+  register: wg_health
+  until: wg_health.stdout == "healthy"
+  retries: 10
+  delay: 5
+  changed_when: false
+  tags: ['wireguard', 'verify']
+
+- name: Verify WireGuard tunnel interface exists
+  ansible.builtin.command:
+    cmd: >
+      docker exec
+      naaccord-wireguard-{{ 'web' if 'web' in group_names else 'services' }}
+      wg show wg0
+  register: wg_show
+  changed_when: false
+  failed_when: wg_show.rc != 0
+  tags: ['wireguard', 'verify']
+
+- name: Test WireGuard tunnel connectivity (ping peer)
+  ansible.builtin.command:
+    cmd: >
+      docker exec
+      naaccord-wireguard-{{ 'web' if 'web' in group_names else 'services' }}
+      ping -c 3 {{ wireguard_peer_ip }}
+  register: wg_ping
+  changed_when: false
+  failed_when: false  # Don't fail if peer is not reachable yet
+  vars:
+    wireguard_peer_ip: "{{ '10.100.0.11' if 'web' in group_names else '10.100.0.10' }}"
+  tags: ['wireguard', 'verify']
+
+- name: Display WireGuard connectivity status
+  ansible.builtin.debug:
+    msg: "{{ 'WireGuard tunnel connectivity confirmed' if wg_ping.rc == 0 else 'WireGuard tunnel configured but peer not reachable (this is normal if peer server not deployed yet)' }}"
+  tags: ['wireguard', 'verify']
+
+- name: Display WireGuard configuration
+  ansible.builtin.debug:
+    msg: "{{ wg_show.stdout }}"
+  tags: ['wireguard', 'verify']
+
+# Include hardening tasks
+- name: Include WireGuard hardening tasks
+  ansible.builtin.include_tasks: harden.yml
+  tags: ['wireguard', 'hardening']

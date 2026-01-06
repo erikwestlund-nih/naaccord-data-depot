@@ -1,0 +1,61 @@
+---
+# MariaDB defaults
+
+# MariaDB version and packages
+mariadb_packages:
+  - mariadb-server
+  - mariadb
+  - python3-PyMySQL  # Required for Ansible mysql modules
+
+# Service configuration
+mariadb_service: mariadb
+mariadb_enabled: yes
+mariadb_state: started
+
+# Network configuration
+mariadb_bind_address: "0.0.0.0"  # Allow connections from Docker containers
+mariadb_port: 3306
+
+# Database configuration
+mariadb_database: naaccord
+mariadb_character_set: utf8mb4
+mariadb_collation: utf8mb4_unicode_ci
+
+# Root credentials (from vault)
+mariadb_root_password: "{{ vault_mariadb_root_password }}"
+
+# Application user credentials (from vault)
+mariadb_app_user: naaccord_app
+mariadb_app_password: "{{ vault_mariadb_app_password }}"
+# Note: User grants are created dynamically from:
+#   - localhost (for direct connections)
+#   - Docker subnet (auto-detected from naaccord_internal network, e.g., 172.18.%)
+
+# Admin user credentials (from vault) - for debugging/analysis via TablePlus
+mariadb_admin_user: naaccord_admin
+mariadb_admin_password: "{{ vault_mariadb_admin_password }}"
+
+# Encryption configuration
+mariadb_encryption_enabled: yes
+mariadb_encryption_dir: /etc/mysql/encryption
+mariadb_encryption_key_file: "{{ mariadb_encryption_dir }}/keyfile"
+mariadb_encryption_key_id: 1
+
+# Performance tuning
+mariadb_max_connections: 200
+mariadb_innodb_buffer_pool_size: "1G"
+mariadb_innodb_log_file_size: "256M"
+
+# Security settings
+mariadb_skip_name_resolve: yes
+mariadb_local_infile: 0
+
+# Log configuration
+mariadb_log_error: /var/log/mariadb/mariadb.log
+mariadb_slow_query_log: 1
+mariadb_slow_query_log_file: /var/log/mariadb/mariadb-slow.log
+mariadb_long_query_time: 2
+
+# Backup configuration
+mariadb_backup_dir: /var/backups/mariadb
+mariadb_backup_retention_days: 7

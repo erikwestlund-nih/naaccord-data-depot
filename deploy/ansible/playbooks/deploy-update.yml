@@ -1,0 +1,225 @@
+---
+# Quick deployment playbook - Updates code and containers only
+# Does NOT modify infrastructure, firewall, database, or system configuration
+# Safe to run repeatedly for application updates
+
+- name: Deploy Application Update (Code + Containers)
+  hosts: all
+  become: no
+
+  vars:
+    naaccord_repo_path: /opt/naaccord/depot
+    use_sudo_for_docker: true
+
+  tasks:
+    - name: Detect environment from marker file
+      ansible.builtin.stat:
+        path: /etc/naaccord/environment
+      register: env_marker
+
+    - name: Read environment from marker
+      ansible.builtin.slurp:
+        path: /etc/naaccord/environment
+      register: env_content
+      when: env_marker.stat.exists
+
+    - name: Set environment variable
+      ansible.builtin.set_fact:
+        naaccord_environment: "{{ (env_content.content | b64decode | trim) if env_marker.stat.exists else 'unknown' }}"
+
+    - name: Verify environment is known
+      ansible.builtin.fail:
+        msg: "Could not detect environment. Expected /etc/naaccord/environment with 'staging' or 'production'"
+      when: naaccord_environment not in ['staging', 'production']
+
+    - name: Display deployment info
+      ansible.builtin.debug:
+        msg: "Deploying to {{ naaccord_environment }} environment on {{ inventory_hostname }}"
+
+    - name: Reset any local changes before pulling
+      ansible.builtin.command:
+        cmd: git reset --hard HEAD
+        chdir: "{{ naaccord_repo_path }}"
+      become: no
+      changed_when: false
+      tags: ['git', 'code']
+
+    - name: Pull latest code from git
+      ansible.builtin.command:
+        cmd: git pull origin {{ 'main' if naaccord_environment == 'production' else 'main' }}
+        chdir: "{{ naaccord_repo_path }}"
+      become: no
+      register: git_pull
+      changed_when: "'Already up to date' not in git_pull.stdout"
+      tags: ['git', 'code']
+
+    - name: Get current git commit
+      ansible.builtin.command:
+        cmd: git rev-parse --short HEAD
+        chdir: "{{ naaccord_repo_path }}"
+      become: no
+      register: git_commit
+      changed_when: false
+      tags: ['git', 'code']
+
+    - name: Display deployed commit
+      ansible.builtin.debug:
+        msg: "Deployed commit: {{ git_commit.stdout }}"
+      tags: ['git', 'code']
+
+    - name: Ensure healthcheck script is executable
+      ansible.builtin.file:
+        path: "{{ naaccord_repo_path }}/deploy/containers/healthcheck-services.sh"
+        mode: '0755'
+      tags: ['code', 'healthcheck']
+
+    - name: Log in to GitHub Container Registry
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker login ghcr.io -u {{ vault_ghcr_username }} -p {{ vault_ghcr_token }}"
+      no_log: true
+      tags: ['docker', 'registry']
+
+    - name: Determine docker compose file
+      ansible.builtin.set_fact:
+        docker_compose_file: docker-compose.prod.yml
+      tags: ['docker']
+
+    - name: Build docker compose profile flags
+      ansible.builtin.set_fact:
+        docker_profile_flags: "{% for profile in docker_compose_profiles %}--profile {{ profile }} {% endfor %}"
+      tags: ['docker']
+
+    - name: Pull latest Docker images
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker compose -f {{ docker_compose_file }} {{ docker_profile_flags }}pull"
+        chdir: "{{ naaccord_repo_path }}"
+      register: docker_pull
+      changed_when: "'Pulled' in docker_pull.stderr or 'Downloaded' in docker_pull.stderr"
+      tags: ['docker', 'pull']
+
+    - name: Stop containers
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker compose -f {{ docker_compose_file }} {{ docker_profile_flags }}down"
+        chdir: "{{ naaccord_repo_path }}"
+      register: docker_down
+      changed_when: "'Removed' in docker_down.stderr or 'Stopped' in docker_down.stderr"
+      tags: ['docker', 'stop']
+
+    - name: Start updated containers
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker compose -f {{ docker_compose_file }} {{ docker_profile_flags }}up -d"
+        chdir: "{{ naaccord_repo_path }}"
+      register: docker_up
+      changed_when: "'Started' in docker_up.stderr or 'Created' in docker_up.stderr"
+      tags: ['docker', 'start']
+
+    - name: Wait for services container to be ready
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker inspect --format='{% raw %}{{.State.Status}}{% endraw %}' naaccord-services"
+      register: services_status
+      until: services_status.stdout == "running"
+      retries: 10
+      delay: 3
+      changed_when: false
+      when: "'services' in group_names"
+      tags: ['docker', 'verify']
+
+    - name: Run Django database migrations
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker exec naaccord-services python manage.py migrate"
+      register: django_migrate
+      changed_when: "'Applying' in django_migrate.stdout"
+      when: "'services' in group_names"
+      tags: ['django', 'migrations']
+
+    - name: Run django_celery_beat migrations
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker exec naaccord-services python manage.py migrate django_celery_beat"
+      register: celery_beat_migrate
+      changed_when: "'Applying' in celery_beat_migrate.stdout"
+      when: "'services' in group_names"
+      tags: ['django', 'migrations']
+
+    - name: Fix NAS directory permissions for Docker containers (services only)
+      ansible.builtin.file:
+        path: "{{ nas_mount_point }}/{{ item }}"
+        state: directory
+        owner: 1000
+        group: 1000
+        mode: '0775'
+        recurse: yes
+      loop:
+        - uploads
+        - submissions
+        - reports
+        - workspace
+      become: yes
+      when: "'services' in group_names"
+      tags: ['nas', 'permissions']
+
+    # Static files are built by pre-commit hook and committed to git
+    # Django's collectstatic copies from /app/static/ to /app/staticfiles/ for serving
+
+    - name: Clear staticfiles directory to avoid permission issues
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker exec --user root naaccord-web sh -c 'rm -rf /app/staticfiles/* && mkdir -p /app/staticfiles && chown 1000:1000 /app/staticfiles'"
+      register: static_clear
+      changed_when: true
+      when: "'web' in group_names"
+      tags: ['django', 'static']
+
+    - name: Collect all static files (including Django admin)
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker exec naaccord-web python manage.py collectstatic --noinput"
+      register: collectstatic
+      changed_when: "'Copying' in collectstatic.stdout or 'copying' in collectstatic.stdout"
+      when: "'web' in group_names"
+      tags: ['django', 'static']
+
+    - name: Fix static files ownership for nginx
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker exec --user root naaccord-web chown -R 101:101 /app/staticfiles/"
+      register: static_perms
+      changed_when: true
+      when: "'web' in group_names"
+      tags: ['django', 'static']
+
+    - name: Restart nginx to pick up new static files
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker restart naaccord-nginx"
+      register: nginx_restart
+      changed_when: true
+      when: "'web' in group_names"
+      tags: ['nginx', 'static']
+
+    - name: Display running containers
+      ansible.builtin.command:
+        cmd: "{{ 'sudo ' if use_sudo_for_docker else '' }}docker compose -f {{ docker_compose_file }} {{ docker_profile_flags }}ps"
+        chdir: "{{ naaccord_repo_path }}"
+      register: compose_ps
+      changed_when: false
+      tags: ['docker', 'verify']
+
+    - name: Update shell aliases
+      block:
+        - ansible.builtin.include_role:
+            name: base
+            tasks_from: aliases
+      become: yes
+      tags: ['aliases']
+
+    - name: Show deployment result
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Deployment Complete
+          ========================================
+          Environment: {{ naaccord_environment }}
+          Server: {{ inventory_hostname }}
+          Git Commit: {{ git_commit.stdout }}
+
+          Running Containers:
+          {{ compose_ps.stdout }}
+
+          💡 Run 'narefresh' to update your shell aliases
+      tags: ['verify']

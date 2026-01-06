@@ -1,0 +1,289 @@
+{% extends "layouts/app.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block body %}
+<div class="py-8">
+    <c-page-header 
+        heading="Dashboard" 
+        blurb="{% if user_role == 'Administrator' %}System-wide overview of all cohorts and submissions{% elif user_role == 'Cohort Manager' %}Overview of your cohorts and submission activity{% elif user_role == 'Cohort Viewer' %}Read-only view of your cohort activity{% else %}Your activity overview{% endif %}" 
+    />
+
+    <!-- Aggregate Stats for Administrators -->
+    {% if is_admin and aggregate_stats %}
+    <div class="mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">System Overview</h2>
+        <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+            <dl class="grid grid-cols-1 divide-y divide-gray-200 sm:grid-cols-2 sm:divide-y-0 sm:divide-x lg:grid-cols-4">
+                <div class="flex flex-col px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500">Total Users</dt>
+                    <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ aggregate_stats.total_users }}</dd>
+                </div>
+
+                <div class="flex flex-col px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500">Total Cohorts</dt>
+                    <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ aggregate_stats.total_cohorts }}</dd>
+                </div>
+
+                <div class="flex flex-col px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500">Total Submissions</dt>
+                    <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ aggregate_stats.total_submissions }}</dd>
+                </div>
+
+                <div class="flex flex-col px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500">Total Prechecks</dt>
+                    <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ aggregate_stats.total_prechecks }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Recent Activity Stats -->
+        <h3 class="text-xl font-semibold text-gray-900 mt-6 mb-4">Last 30 Days Activity</h3>
+        <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+            <dl class="grid grid-cols-1 divide-y divide-gray-200 sm:grid-cols-3 sm:divide-y-0 sm:divide-x">
+                <div class="flex flex-col px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500">Active Users</dt>
+                    <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ aggregate_stats.recent_logins }}</dd>
+                </div>
+
+                <div class="flex flex-col px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500">New Submissions</dt>
+                    <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ aggregate_stats.recent_submissions }}</dd>
+                </div>
+
+                <div class="flex flex-col px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500">Prechecks Run</dt>
+                    <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ aggregate_stats.recent_prechecks }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Key Links and Actions -->
+    <div class="mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Common Actions</h2>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
+            {% if request.user.can_create_submission %}
+            <!-- New Submission -->
+            <c-card title="Create Submission" compact="true" class="flex flex-col">
+                <div class="flex-1 flex flex-col">
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-500">Start a new data submission for your cohort. Upload multiple files for a submission wave.</p>
+                    </div>
+                    <div class="mt-4">
+                        <a href="{% url 'submissions_create' %}"
+                           class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                            Get Started
+                        </a>
+                    </div>
+                </div>
+            </c-card>
+            {% endif %}
+
+            <!-- Precheck Validation -->
+            <c-card title="Precheck Validation" compact="true" class="flex flex-col">
+                <div class="flex-1 flex flex-col">
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-500">Validate your data files before submission. Get instant feedback on format and compliance.</p>
+                    </div>
+                    <div class="mt-4">
+                        <a href="{% url 'precheck_validation_page' %}"
+                           class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                            Validate Files
+                        </a>
+                    </div>
+                </div>
+            </c-card>
+
+            <!-- View Submissions -->
+            <c-card title="View Submissions" compact="true" class="flex flex-col">
+                <div class="flex-1 flex flex-col">
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-500">Browse and manage all submissions. Track status, download reports, and view history.</p>
+                    </div>
+                    <div class="mt-4">
+                        <a href="{% url 'submissions' %}"
+                           class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                            Browse
+                        </a>
+                    </div>
+                </div>
+            </c-card>
+        </div>
+    </div>
+
+    <!-- Active Submissions Section -->
+    {% if active_submissions %}
+    <div class="mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Active Submissions</h2>
+        <c-card variant="table" no_border="true">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Cohort</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Protocol Year</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Started By</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Updated</th>
+                            <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                                <span class="sr-only">Actions</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        {% for submission in active_submissions %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                                {{ submission.cohort.name }}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                {{ submission.protocol_year.year }}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                {{ submission.started_by.get_full_name|default:submission.started_by.username }}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                {{ submission.updated_at|timesince }} ago
+                            </td>
+                            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                <a href="{% url 'submission_detail' submission.id %}" class="text-blue-700 hover:text-blue-600 font-medium">
+                                    View<span class="sr-only">, {{ submission.cohort.name }}</span>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </c-card>
+    </div>
+    {% endif %}
+
+    <!-- Cohort Statistics -->
+    <div class="mb-8">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">
+                {% if is_admin %}All Cohorts{% else %}Your Cohorts{% endif %}
+            </h2>
+            <div class="flex items-center gap-2">
+                <label for="cohort_status" class="text-sm text-gray-700">Show:</label>
+                <div class="relative">
+                    <select
+                        id="cohort_status"
+                        name="cohort_status"
+                        class="block appearance-none rounded-md border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        onchange="window.location.href = '?cohort_status=' + this.value"
+                    >
+                        <option value="active" {% if cohort_status_filter == 'active' %}selected{% endif %}>Active Cohorts</option>
+                        <option value="inactive" {% if cohort_status_filter == 'inactive' %}selected{% endif %}>Inactive Cohorts</option>
+                        <option value="all" {% if cohort_status_filter == 'all' %}selected{% endif %}>All Cohorts</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% if cohorts_with_stats %}
+        <c-card variant="table" no_border="true">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Cohort</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Members</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Total Submissions</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">In Progress</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Completed</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Activity</th>
+                            <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                                <span class="sr-only">View</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        {% for cohort in cohorts_with_stats %}
+                        <tr>
+                            <td class="py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6" style="max-width: 200px;">
+                                <div class="break-words" title="{{ cohort.name }}">
+                                    {{ cohort.name }}
+                                </div>
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm">
+                                {% if cohort.status == 'active' %}
+                                    <span class="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                                        Active
+                                    </span>
+                                {% elif cohort.status == 'inactive' %}
+                                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                                        Inactive
+                                    </span>
+                                {% elif cohort.status == 'withdrawn' %}
+                                    <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
+                                        Withdrawn
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ cohort.member_count }}</td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ cohort.submission_count }}</td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                {% if cohort.in_progress_submissions > 0 %}
+                                    <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
+                                        {{ cohort.in_progress_submissions }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-gray-400">0</span>
+                                {% endif %}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                {% if cohort.completed_submissions > 0 %}
+                                    <span class="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                                        {{ cohort.completed_submissions }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-gray-400">0</span>
+                                {% endif %}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                {% if cohort.last_activity %}
+                                    {{ cohort.last_activity|timesince }} ago
+                                {% else %}
+                                    <span class="text-gray-400">Never</span>
+                                {% endif %}
+                            </td>
+                            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                <a href="{% url 'cohort_detail' cohort.id %}" class="text-blue-700 hover:text-blue-600 font-medium">
+                                    View<span class="sr-only">, {{ cohort.name }}</span>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </c-card>
+        {% else %}
+        <c-card>
+            <p class="text-sm text-gray-500">No cohorts to display.</p>
+        </c-card>
+        {% endif %}
+    </div>
+
+    <!-- Latest Activity Feed -->
+    {% if recent_activities %}
+    <div class="mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Latest Activity</h2>
+        <c-card variant="table" no_border="true">
+            <div class="p-6">
+                <c-activity_feed :activities="recent_activities" show_cohort="true" />
+            </div>
+        </c-card>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

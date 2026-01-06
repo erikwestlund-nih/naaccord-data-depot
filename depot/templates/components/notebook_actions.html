@@ -1,0 +1,34 @@
+<c-vars notebook_id user />
+
+{% load depot_tags %}
+{% get_notebook notebook_id as notebook %}
+
+{% if notebook %}
+    {% if notebook.status == 'completed' %}
+        <div class="flex items-center gap-2 text-sm">
+            <a href="{% url 'notebook_view' notebook.id %}"
+               class="font-medium text-blue-600 hover:text-blue-500">
+                View Notebook
+            </a>
+            <span class="text-gray-300">|</span>
+            <a href="{% url 'notebook_download' notebook.id %}"
+               class="font-medium text-blue-600 hover:text-blue-500">
+                Download
+            </a>
+        </div>
+    {% else %}
+        <span class="text-sm text-gray-500">
+            {% if notebook.status == 'pending' %}
+                Waiting to compile...
+            {% elif notebook.status == 'compiling' %}
+                Compiling notebook...
+            {% elif notebook.status == 'failed' %}
+                Compilation failed
+            {% else %}
+                Processing...
+            {% endif %}
+        </span>
+    {% endif %}
+{% else %}
+    <span class="text-sm text-gray-500">Processing...</span>
+{% endif %}

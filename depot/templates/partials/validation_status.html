@@ -1,0 +1,823 @@
+{% load static depot_filters %}
+
+{# Validation Status Display Partial - One Detail Pane Navigation #}
+
+<div id="validation-status-partial-{{ validation_run.id }}" class="space-y-6 scroll-smooth pb-16 lg:pb-6" data-validation-status="{{ validation_run.status }}"
+     x-data="valPage()">
+
+    {# Overall Progress Summary #}
+    <section class="grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
+        <div class="rounded-xl border border-gray-200 bg-white/90 p-5 shadow-sm">
+            <div class="text-3xl font-bold text-gray-700" data-summary-total>{{ summary.total }}</div>
+            <div class="text-xs text-gray-600 uppercase tracking-wide mt-1">Total Variables</div>
+        </div>
+        <div class="rounded-xl border border-amber-200 bg-amber-50/90 p-5 shadow-sm">
+            <div class="text-3xl font-bold text-amber-700" data-summary-warnings>{{ summary.with_warnings }}</div>
+            <div class="text-xs text-amber-600 uppercase tracking-wide mt-1">Warnings in Table</div>
+        </div>
+        <div class="rounded-xl border border-red-200 bg-red-50/90 p-5 shadow-sm">
+            <div class="text-3xl font-bold text-red-700" data-summary-errors>{{ summary.with_errors }}</div>
+            <div class="text-xs text-red-600 uppercase tracking-wide mt-1">Issues in Table</div>
+        </div>
+    </section>
+
+    {# Data Processing Info (CNICS Mapping, etc.) - Only show if mapping was actually applied #}
+    {% if validation_run.processing_metadata and validation_run.processing_metadata.mapping and not validation_run.processing_metadata.mapping.is_passthrough %}
+    <section class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+        <div class="flex items-start gap-3">
+            <c-icon icon="arrow-path" class="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" family="solid" aria-hidden="true" />
+            <div class="flex-1">
+                <h3 class="text-sm font-semibold text-gray-900">Data Processing Applied</h3>
+
+                {% with metadata=validation_run.processing_metadata %}
+                    {% if metadata.mapping %}
+                        <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                            <div class="flex items-baseline gap-1.5">
+                                <span class="text-gray-600">Mapping Group:</span>
+                                {% if metadata.mapping.mapping_group == 'cnics' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">CNICS</span>
+                                {% elif metadata.mapping.is_passthrough %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Standard</span>
+                                {% else %}
+                                    <span class="font-medium text-gray-900">{{ metadata.mapping.mapping_group }}</span>
+                                {% endif %}
+                            </div>
+
+                            {% if metadata.row_count_in %}
+                            <div class="flex items-baseline gap-1.5 sm:justify-end">
+                                <span class="text-gray-600">Rows Processed:</span>
+                                <span class="font-medium text-gray-900">{{ metadata.row_count_in|intcomma }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        {% if metadata.summary.renamed_columns %}
+                        <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <h4 class="text-xs font-semibold text-blue-900 uppercase tracking-wide mb-2">Column Mappings Applied</h4>
+                            <ul class="space-y-1 text-sm">
+                                {% for rename in metadata.summary.renamed_columns %}
+                                <li class="flex items-center gap-2">
+                                    <code class="px-2 py-0.5 bg-white border border-blue-200 rounded text-xs text-gray-700">{{ rename.source }}</code>
+                                    <c-icon icon="arrow-right" class="h-3 w-3 text-blue-600" family="solid" aria-hidden="true" />
+                                    <code class="px-2 py-0.5 bg-white border border-blue-200 rounded text-xs text-gray-700 font-semibold">{{ rename.target }}</code>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if metadata.summary.columns_normalized > 0 %}
+                        <div class="mt-2 text-xs text-gray-600">
+                            <c-icon icon="check-circle" class="h-3.5 w-3.5 text-green-600 inline" family="solid" aria-hidden="true" />
+                            {{ metadata.summary.columns_normalized }} column{{ metadata.summary.columns_normalized|pluralize }} normalized to match data definition casing
+                        </div>
+                        {% endif %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    {# Two-Column Layout: Sticky Sidebar + Single Detail Pane #}
+    <div class="lg:flex lg:gap-6">
+        <div class="lg:w-[18.25rem] lg:flex-shrink-0 lg:border-r lg:border-gray-300 lg:pr-6">
+            <div class="border border-gray-200 rounded-xl bg-white print:hidden">
+                <div class="lg:hidden border-b border-gray-200 p-4 rounded-t-2xl print:hidden">
+                    <button
+                        @click="sidebarOpen = !sidebarOpen"
+                        class="w-full flex items-center justify-between text-sm font-medium text-gray-700 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded"
+                        type="button"
+                        aria-label="Toggle variable navigation">
+                        <span>Variables ({{ validation_variables.count }})</span>
+                        <c-icon icon="bars-3" class="h-5 w-5" family="solid" aria-hidden="true" />
+                    </button>
+                </div>
+
+                <aside
+                    class="hidden lg:block sticky top-4 self-start bg-white rounded-xl print:hidden"
+                    :class="{ '!block': sidebarOpen }"
+                    role="navigation"
+                    aria-label="Variables">
+
+                    <div class="bg-slate-50/80 backdrop-blur supports-[backdrop-filter]:bg-slate-50/60 border-b border-gray-200 px-4 py-3 rounded-t-xl sticky top-0 z-10">
+                        <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Variables</h3>
+                        <p class="text-xs text-gray-500 mt-0.5">{{ validation_variables.count }} total</p>
+                    </div>
+
+                    <nav class="rounded-b-xl overflow-hidden">
+                        {# Use ordered variables if available, otherwise fall back to validation_variables #}
+                        {% if ordered_variables %}
+                            {# Display ordered variables (core first, then additional) #}
+                            {% for variable in ordered_variables %}
+                            <a
+                                href="#var-{{ variable.id }}"
+                                @click.prevent="goTo({{ variable.id }})"
+                                x-bind:aria-current="isActive({{ variable.id }}) ? 'page' : null"
+                                :class="isActive({{ variable.id }}) ? 'bg-blue-50 text-blue-700 border-l-blue-500' : 'bg-white text-gray-700 border-l-transparent hover:bg-gray-50'"
+                                class="block w-full text-left px-4 py-3 border-b border-gray-200 last:border-b-0 border-l-4 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                                data-variable-id="{{ variable.id }}">
+
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2">
+                                            {% if variable.status == 'pending' %}
+                                                <c-icon icon="arrow-path" class="h-4 w-4 text-gray-400 animate-spin flex-shrink-0" family="solid" aria-hidden="true" />
+                                            {% elif variable.status == 'running' %}
+                                                <c-icon icon="arrow-path" class="h-4 w-4 text-blue-500 animate-spin flex-shrink-0" family="solid" aria-hidden="true" />
+                                            {% endif %}
+
+                                            <span class="text-sm font-semibold">{{ variable.column_name }}</span>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-0.5">
+                                            {{ definition_labels|get_item:variable.column_name|default:variable.column_name }}
+                                        </p>
+                                    </div>
+
+                                    <div class="flex flex-col gap-1 items-end flex-shrink-0">
+                                        {% if variable.total_rows == 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200">
+                                                not submitted
+                                            </span>
+                                        {% else %}
+                                            {% if variable.error_count > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 ring-1 ring-inset ring-red-200" aria-label="{{ variable.error_count }} errors">
+                                                {{ variable.error_count }}
+                                            </span>
+                                            {% endif %}
+                                            {% if variable.warning_count > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200" aria-label="{{ variable.warning_count }} warnings">
+                                                {{ variable.warning_count }}
+                                            </span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </a>
+                            {% empty %}
+                            <div class="p-4 text-center text-gray-500 text-sm">
+                                No variables found
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            {# Fallback: display validation_variables if ordered_variables not available #}
+                            {% for variable in validation_variables %}
+                            <a
+                                href="#var-{{ variable.id }}"
+                                @click.prevent="goTo({{ variable.id }})"
+                                x-bind:aria-current="isActive({{ variable.id }}) ? 'page' : null"
+                                :class="isActive({{ variable.id }}) ? 'bg-blue-50 text-blue-700 border-l-blue-500' : 'bg-white text-gray-700 border-l-transparent hover:bg-gray-50'"
+                                class="block w-full text-left px-4 py-3 border-b border-gray-200 last:border-b-0 border-l-4 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                                data-variable-id="{{ variable.id }}">
+
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2">
+                                            {% if variable.status == 'pending' %}
+                                                <c-icon icon="arrow-path" class="h-4 w-4 text-gray-400 animate-spin flex-shrink-0" family="solid" aria-hidden="true" />
+                                            {% elif variable.status == 'running' %}
+                                                <c-icon icon="arrow-path" class="h-4 w-4 text-blue-500 animate-spin flex-shrink-0" family="solid" aria-hidden="true" />
+                                            {% endif %}
+
+                                            <span class="text-sm font-semibold">{{ variable.column_name }}</span>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-0.5">
+                                            {{ definition_labels|get_item:variable.column_name|default:variable.column_name }}
+                                        </p>
+                                    </div>
+
+                                    <div class="flex flex-col gap-1 items-end flex-shrink-0">
+                                        {% if variable.total_rows == 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200">
+                                                not submitted
+                                            </span>
+                                        {% else %}
+                                            {% if variable.error_count > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 ring-1 ring-inset ring-red-200" aria-label="{{ variable.error_count }} errors">
+                                                {{ variable.error_count }}
+                                            </span>
+                                            {% endif %}
+                                            {% if variable.warning_count > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200" aria-label="{{ variable.warning_count }} warnings">
+                                                {{ variable.warning_count }}
+                                            </span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </a>
+                            {% empty %}
+                            <div class="p-4 text-center text-gray-500 text-sm">
+                                No variables found
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    </nav>
+                </aside>
+            </div>
+        </div>
+
+        <div class="mt-4 lg:mt-0 lg:flex-1 lg:min-w-0">
+            <main class="mt-0 scroll-mt-32 border border-gray-200 bg-white rounded-xl shadow-sm print:border-0 print:shadow-none print:col-span-12" id="variable-content">
+                {# Use ordered variables to match sidebar navigation order #}
+                {% for variable in ordered_variables|default:validation_variables %}
+                <div
+                    x-show="isActive({{ variable.id }})"
+                    x-cloak
+                    id="var-{{ variable.id }}"
+                    class="min-h-[40vh]">
+
+                    {# Variable Header #}
+                    <div class="bg-gray-50/50 px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center gap-3">
+                            {# Status Icon - only show for pending/running #}
+                            {% if variable.status == 'pending' %}
+                                <c-icon icon="arrow-path" class="h-6 w-6 text-gray-400 animate-spin" family="solid" aria-hidden="true" />
+                            {% elif variable.status == 'running' %}
+                                <c-icon icon="arrow-path" class="h-6 w-6 text-blue-500 animate-spin" family="solid" aria-hidden="true" />
+                            {% endif %}
+
+                            <div>
+                                {# Column name heading #}
+                                <h2 class="text-2xl font-bold text-gray-900" id="var-{{ variable.id }}-title" tabindex="-1" x-ref="varTitle{{ variable.id }}">{{ variable.column_name }}</h2>
+
+                                {# Type badge #}
+                                <div class="flex items-center gap-2 mt-2">
+                            {% if variable.column_type == 'id' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-purple-100 text-purple-800 ring-1 ring-inset ring-purple-200">
+                                <c-icon icon="key" class="h-2.5 w-2.5" family="solid" aria-hidden="true" />
+                                <span class="text-xs font-mono font-semibold">id</span>
+                            </span>
+                            {% elif variable.column_type == 'string' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-100 text-blue-800 ring-1 ring-inset ring-blue-200">
+                                <c-icon icon="text" class="h-2.5 w-2.5" family="solid" aria-hidden="true" />
+                                <span class="text-xs font-mono font-semibold">string</span>
+                            </span>
+                            {% elif variable.column_type == 'date' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-teal-100 text-teal-800 ring-1 ring-inset ring-teal-200">
+                                <c-icon icon="calendar" class="h-3 w-3" family="solid" aria-hidden="true" />
+                                <span class="text-xs font-mono font-semibold">date</span>
+                            </span>
+                            {% elif variable.column_type == 'int' or variable.column_type == 'float' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 ring-1 ring-inset ring-indigo-200">
+                                <c-icon icon="hashtag" class="h-3 w-3" family="solid" aria-hidden="true" />
+                                <span class="text-xs font-mono font-semibold">{{ variable.column_type }}</span>
+                            </span>
+                            {% elif variable.column_type == 'year' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 ring-1 ring-inset ring-indigo-200">
+                                <c-icon icon="calendar" class="h-2.5 w-2.5" family="solid" aria-hidden="true" />
+                                <span class="text-xs font-mono font-semibold">year</span>
+                            </span>
+                            {% elif variable.column_type == 'enum' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-orange-100 text-orange-800 ring-1 ring-inset ring-orange-200">
+                                <c-icon icon="list-radio" class="h-2.5 w-2.5" family="solid" aria-hidden="true" />
+                                <span class="text-xs font-mono font-semibold">enum</span>
+                            </span>
+                            {% elif variable.column_type == 'boolean' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 ring-1 ring-inset ring-cyan-200">
+                                <c-icon icon="circle-check" class="h-3 w-3" family="solid" aria-hidden="true" />
+                                <span class="text-xs font-mono font-semibold">boolean</span>
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-gray-100 text-gray-800 ring-1 ring-inset ring-gray-200">
+                                <c-icon icon="tag" class="h-3 w-3" family="solid" aria-hidden="true" />
+                                <span class="text-xs font-mono font-semibold">{{ variable.column_type }}</span>
+                            </span>
+                            {% endif %}
+                                </div>
+
+                                {# Long description with extra padding #}
+                                {% if variable.display_name %}
+                                <p class="text-sm text-gray-600 mt-3 leading-relaxed">{{ variable.display_name }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            {% if can_edit and variable.validation_run_id %}
+                            <form method="post" action="{% url 'submission_revalidate_variable' submission.id data_table.data_file_type.name variable.id %}" class="inline" onsubmit="return confirm('Re-run validation for {{ variable.name }}? This will replace the current results.');">
+                                {% csrf_token %}
+                                <button type="submit" class="inline-flex items-center px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-100 rounded-md bg-blue-50 hover:bg-blue-100 hover:text-blue-800 hover:border-blue-200 transition-colors">
+                                    Re-run
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    </div>
+
+                    {# Variable Statistics Bar - Tighter density #}
+                    {% if variable.status == 'completed' %}
+                    <div class="grid grid-cols-4 border-b border-gray-200 bg-white">
+                        <div class="px-4 py-3 border-r border-gray-200 text-center">
+                            <div class="text-lg font-semibold text-gray-700">{{ variable.total_rows }}</div>
+                            <div class="text-[11px] text-gray-600 uppercase tracking-wide mt-0.5">Total Rows</div>
+                        </div>
+                        <div class="px-4 py-3 border-r border-gray-200 text-center">
+                            <div class="text-lg font-semibold text-green-700">{{ variable.valid_count }}</div>
+                            <div class="text-[11px] text-green-600 uppercase tracking-wide mt-0.5">Valid</div>
+                        </div>
+                        <div class="px-4 py-3 border-r border-gray-200 text-center">
+                            <div class="text-lg font-semibold text-amber-700">{{ variable.warning_count }}</div>
+                            <div class="text-[11px] text-amber-600 uppercase tracking-wide mt-0.5">Warnings</div>
+                        </div>
+                        <div class="px-4 py-3 text-center">
+                            <div class="text-lg font-semibold text-red-700">{{ variable.error_count }}</div>
+                            <div class="text-[11px] text-red-600 uppercase tracking-wide mt-0.5">Issues</div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {# Content Sections #}
+                    {% if variable.status == 'completed' %}
+                        {# Section 1: Validation Report #}
+                        <div>
+                            <div class="px-6 py-3 bg-gray-50/50">
+                                <h3 class="text-lg font-semibold text-gray-900">Validation Report</h3>
+                            </div>
+
+                            <div class="px-6 py-4">
+                                {# Validation checks - simple list #}
+                                {% if variable.checks.exists %}
+                                <div class="space-y-4">
+                                    {% for check in variable.checks.all %}
+                                    <div class="flex items-start gap-3 p-3 rounded-lg {% if not check.passed %}{% if check.severity == 'error' %}bg-red-50{% else %}bg-amber-50{% endif %}{% endif %}">
+                                        {# Status icon #}
+                                        {% if check.passed %}
+                                        <c-icon icon="circle-check" class="h-4 w-4 mt-0.5 text-green-600" family="solid" aria-hidden="true" />
+                                        {% else %}
+                                            {% if check.severity == 'error' %}
+                                            <c-icon icon="circle-exclamation" class="h-4 w-4 mt-0.5 text-red-600" family="solid" aria-hidden="true" />
+                                            {% else %}
+                                            <c-icon icon="triangle-exclamation" class="h-4 w-4 mt-0.5 text-amber-600" family="solid" aria-hidden="true" />
+                                            {% endif %}
+                                        {% endif %}
+
+                                        {# Rule name and message #}
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-baseline gap-2">
+                                                <span class="text-sm font-medium text-gray-900">{{ check.rule_key|replace_underscore|title }}</span>
+                                                {% if not check.passed %}
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                                    {% if check.severity == 'error' %}bg-red-100 text-red-800{% else %}bg-amber-100 text-amber-800{% endif %}">
+                                                    {% if check.severity == 'error' %}Critical{% else %}Warning{% endif %}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                            <p class="text-sm {% if check.passed %}text-gray-600{% elif check.severity == 'error' %}text-red-700{% else %}text-amber-700{% endif %} mt-1.5">
+                                                {{ check.message }}
+                                                {% if not check.passed and check.affected_row_count > 0 %}
+                                                <span class="text-gray-600"> ({{ check.affected_row_count|intcomma }} affected row{{ check.affected_row_count|pluralize }})</span>
+                                                {% endif %}
+
+                                                {# Special handling for cross-file validation errors - show link to re-run with submission #}
+                                                {% if check.rule_key == 'cross_file_reference' and not check.passed and check.meta.suggestion %}
+                                                <a href="{% url 'precheck_validation_page' %}" class="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 underline mt-2">
+                                                    <c-icon icon="arrow-path" class="h-4 w-4" family="solid" />
+                                                    Re-run with submission
+                                                </a>
+                                                {% endif %}
+                                            </p>
+
+                                            {# Show affected rows with file tracking if available #}
+                                            {% if not check.passed and check.meta.has_file_tracking and check.meta.affected_rows %}
+                                            <div class="mt-2 p-2 bg-white border border-gray-200 rounded text-xs">
+                                                <div class="font-medium text-gray-700 mb-1">Affected rows ({{ check.affected_row_count }} total):</div>
+                                                <div class="space-y-1 max-h-40 overflow-y-auto">
+                                                    {% for row in check.meta.affected_rows|slice:":20" %}
+                                                    <div class="flex items-center gap-2 text-gray-600">
+                                                        <c-icon icon="document" class="h-3 w-3 text-gray-400" family="solid" />
+                                                        <span>File #{{ row.file_id }}, Row {{ row.source_row }}</span>
+                                                        {% if row.value %}
+                                                        <span class="text-gray-400">→</span>
+                                                        <code class="px-1.5 py-0.5 bg-gray-100 rounded">{{ row.value }}</code>
+                                                        {% endif %}
+                                                    </div>
+                                                    {% endfor %}
+                                                    {% if check.affected_row_count > 20 %}
+                                                    <div class="text-gray-500 italic pt-1">
+                                                        ... and {{ check.affected_row_count|add:"-20" }} more
+                                                    </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            {% elif not check.passed and check.row_numbers %}
+                                            {# Fallback for old-style row number display #}
+                                            <div class="mt-2 text-xs text-gray-600">
+                                                <span class="font-medium">Affected rows:</span> {{ check.get_row_numbers_display }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <div class="flex items-start gap-3 py-2">
+                                    <c-icon icon="information-circle" class="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" family="solid" aria-hidden="true" />
+                                    <p class="text-sm text-gray-500">No validation checks configured for this variable</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {# Only show Summary if variable has data #}
+                        {% if variable.total_rows > 0 %}
+                        {# Separator with padding #}
+                        <div class="px-6">
+                            <div class="border-t border-gray-200"></div>
+                        </div>
+
+                        {# Section 2: Summary #}
+                        <div>
+                            <div class="px-6 py-3 bg-gray-50/50">
+                                <h3 class="text-lg font-semibold text-gray-900">Summary</h3>
+                            </div>
+
+                            {% if variable.column_type == 'id' %}
+                                {% include "partials/validation_summary_id.html" %}
+                            {% elif variable.column_type == 'enum' %}
+                                {% include "partials/validation_summary_enum.html" %}
+                            {% elif variable.column_type == 'int' or variable.column_type == 'float' or variable.column_type == 'year' %}
+                                {% include "partials/validation_summary_numeric.html" %}
+                            {% elif variable.column_type == 'date' %}
+                                {% include "partials/validation_summary_date.html" %}
+                            {% elif variable.column_type == 'string' %}
+                                {% include "partials/validation_summary_string.html" %}
+                            {% elif variable.column_type == 'boolean' %}
+                                {% include "partials/validation_summary_boolean.html" %}
+                            {% else %}
+                                <div class="px-6 py-4 text-sm text-gray-500">Summary not available for this type</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    {% endif %}
+
+                    {# Fatal Error Message #}
+                    {% if variable.status == 'failed' and variable.error_message %}
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mx-6 mb-6">
+                        <div class="flex items-start gap-3">
+                            <c-icon icon="triangle-exclamation" class="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" family="solid" aria-hidden="true" />
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-semibold text-red-900">Fatal Error</p>
+                                <p class="text-sm text-red-700 mt-1">{{ variable.error_message }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {# Processing Message #}
+                    {% if variable.status == 'running' or variable.status == 'pending' %}
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mx-6 mt-6 mb-6 text-center">
+                        <c-icon icon="arrow-path" class="h-12 w-12 text-blue-500 animate-spin mx-auto mb-2" family="solid" aria-hidden="true" />
+                        <p class="text-sm font-medium text-blue-900">
+                            {% if variable.status == 'pending' %}
+                                Validation queued
+                            {% else %}
+                                Validation in progress
+                            {% endif %}
+                        </p>
+                        <p class="text-xs text-blue-700 mt-1">Results will appear here when complete</p>
+                    </div>
+                    {% endif %}
+
+                    {# Desktop Controls - Anchored after content #}
+                    <div class="hidden lg:flex justify-end items-center gap-2 px-6 py-6 print:hidden" x-show="isActive({{ variable.id }})">
+                        <div class="inline-flex items-center gap-2 rounded-lg bg-white shadow-lg ring-1 ring-gray-200 px-2 py-1.5">
+                            <button
+                                @click="goPrev()"
+                                :disabled="!canGoPrev()"
+                                :aria-disabled="!canGoPrev()"
+                                :tabindex="!canGoPrev() ? -1 : 0"
+                                :class="canGoPrev() ? 'hover:bg-slate-50 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
+                                class="inline-flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium text-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 transition-colors motion-safe:transition-all motion-reduce:transition-none"
+                                type="button"
+                                title="Previous Variable (J)"
+                                aria-label="Previous variable (J)">
+                                <c-icon icon="chevron-left" class="h-4 w-4" family="solid" aria-hidden="true" />
+                                <span>Previous Variable</span>
+                                <kbd class="inline-flex items-center rounded text-[11px] px-1.5 py-0.5 bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200 font-semibold">J</kbd>
+                            </button>
+                            <div class="w-px h-6 bg-gray-200" aria-hidden="true"></div>
+                            <button
+                                @click="goNext()"
+                                :disabled="!canGoNext()"
+                                :aria-disabled="!canGoNext()"
+                                :tabindex="!canGoNext() ? -1 : 0"
+                                :class="canGoNext() ? 'hover:bg-slate-50 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
+                                class="inline-flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium text-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 transition-colors motion-safe:transition-all motion-reduce:transition-none"
+                                type="button"
+                                title="Next Variable (K)"
+                                aria-label="Next variable (K)">
+                                <kbd class="inline-flex items-center rounded text-[11px] px-1.5 py-0.5 bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200 font-semibold">K</kbd>
+                                <span>Next Variable</span>
+                                <c-icon icon="chevron-right" class="h-4 w-4" family="solid" aria-hidden="true" />
+                            </button>
+                        </div>
+
+                        {# Keyboard help button #}
+                        <button
+                            @click="helpOpen = !helpOpen"
+                            class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white shadow-lg ring-1 ring-gray-200 text-gray-600 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 transition-colors text-base font-semibold"
+                            type="button"
+                            title="Keyboard shortcuts"
+                            aria-label="Show keyboard shortcuts">
+                            ?
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+
+                {% if not ordered_variables and not validation_variables %}
+                <div class="text-center py-12 px-6">
+                    <c-icon icon="inbox" class="h-16 w-16 text-gray-400 mx-auto mb-4" aria-hidden="true" />
+                    <p class="text-gray-600">No variables found in definition</p>
+                </div>
+                {% endif %}
+
+                {# Bottom spacer so controls don't collide #}
+                <div class="block h-24" aria-hidden="true"></div>
+            </main>
+        </div>
+    </div>
+
+    {# Mobile Bottom Bar #}
+    <div class="lg:hidden fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70 border-t border-gray-200 shadow-lg z-40 pb-[calc(env(safe-area-inset-bottom)+8px)] print:hidden">
+        <div class="grid grid-cols-2 divide-x divide-gray-200">
+            <button
+                @click="goPrev()"
+                :disabled="!canGoPrev()"
+                :aria-disabled="!canGoPrev()"
+                :tabindex="!canGoPrev() ? -1 : 0"
+                :class="canGoPrev() ? 'hover:bg-slate-50' : 'opacity-40'"
+                class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                type="button"
+                title="Previous Variable (J)"
+                aria-label="Previous variable (J)">
+                <c-icon icon="chevron-left" class="h-5 w-5" family="solid" aria-hidden="true" />
+                <span>Prev Variable</span>
+                <kbd class="inline-flex items-center rounded text-[11px] px-1.5 py-0.5 bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200 font-semibold ml-1">J</kbd>
+            </button>
+            <button
+                @click="goNext()"
+                :disabled="!canGoNext()"
+                :aria-disabled="!canGoNext()"
+                :tabindex="!canGoNext() ? -1 : 0"
+                :class="canGoNext() ? 'hover:bg-slate-50' : 'opacity-40'"
+                class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                type="button"
+                title="Next Variable (K)"
+                aria-label="Next variable (K)">
+                <kbd class="inline-flex items-center rounded text-[11px] px-1.5 py-0.5 bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200 font-semibold mr-1">K</kbd>
+                <span>Next Variable</span>
+                <c-icon icon="chevron-right" class="h-5 w-5" family="solid" aria-hidden="true" />
+            </button>
+        </div>
+    </div>
+
+    {# Keyboard Shortcuts Help Panel #}
+    <div
+        x-show="helpOpen"
+        x-cloak
+        @click.self="helpOpen = false"
+        @keydown.escape.window="helpOpen = false"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end lg:items-center justify-center p-4 print:hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shortcuts-title">
+        <div class="bg-white rounded-lg shadow-xl max-w-sm w-full p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h3 id="shortcuts-title" class="text-sm font-semibold uppercase tracking-wide text-gray-900">Keyboard Shortcuts</h3>
+                <button
+                    @click="helpOpen = false"
+                    class="text-gray-400 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded p-1"
+                    type="button"
+                    aria-label="Close shortcuts help">
+                    <c-icon icon="x-mark" class="h-4 w-4" family="solid" aria-hidden="true" />
+                </button>
+            </div>
+
+            <div class="space-y-2 text-sm">
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-600">Next variable</span>
+                    <kbd class="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded">K</kbd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-600">Previous variable</span>
+                    <kbd class="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded">J</kbd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-600">First variable</span>
+                    <kbd class="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded">G G</kbd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-600">Last variable</span>
+                    <kbd class="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded">Shift+G</kbd>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Visually hidden status for screen readers #}
+    <div class="sr-only" aria-live="polite" aria-atomic="true" x-text="announcePosition()"></div>
+</div>
+
+{# Alpine.js One-Detail-Pane Navigation Logic #}
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('valPage', () => ({
+    activeId: null,
+    ids: [],
+    indexMap: {},
+    sidebarOpen: false,
+    helpOpen: false,
+    pressing: {
+      g: false,
+      gTimeout: null
+    },
+    prefersReducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+
+    init() {
+      // Build ids array from server-rendered variables (only match exact var-{id} pattern, not var-{id}-title)
+      const varElements = document.querySelectorAll('div[id^="var-"]:not([id*="-title"])');
+      this.ids = Array.from(varElements)
+        .map(el => parseInt(el.id.replace('var-', '')))
+        .filter(id => !isNaN(id));
+      this.indexMap = Object.fromEntries(this.ids.map((id, i) => [id, i]));
+
+      // Handle initial hash or default to first variable
+      const hash = window.location.hash;
+      if (hash && hash.startsWith('#var-')) {
+        const varId = parseInt(hash.replace('#var-', ''));
+        this.activeId = this.ids.includes(varId) ? varId : (this.ids[0] || null);
+      } else {
+        this.activeId = this.ids[0] || null;
+      }
+
+      // Listen for hash changes
+      window.addEventListener('hashchange', () => {
+        const newHash = window.location.hash;
+        if (newHash && newHash.startsWith('#var-')) {
+          const varId = parseInt(newHash.replace('#var-', ''));
+          if (this.ids.includes(varId)) {
+            this.activeId = varId;
+          }
+        }
+      });
+
+      // Setup keyboard shortcuts
+      this.setupKeyboard();
+
+      // Initial scroll
+      this.$nextTick(() => {
+        this.scrollToTop();
+      });
+    },
+
+    setupKeyboard() {
+      window.addEventListener('keydown', (e) => {
+        // Ignore if typing in inputs/textarea/select
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
+        // Use e.code for physical key detection (works regardless of shift/caps)
+        if (e.code === 'KeyJ' || e.code === 'ArrowDown') {
+          e.preventDefault();
+          this.goPrev();
+          return;
+        }
+
+        if (e.code === 'KeyK' || e.code === 'ArrowUp') {
+          e.preventDefault();
+          this.goNext();
+          return;
+        }
+
+        // Handle G shortcuts using e.code
+        if (e.code === 'KeyG') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            this.goToLast();
+          } else {
+            this.handleDoubleG();
+          }
+          return;
+        }
+      });
+    },
+
+    handleDoubleG() {
+      if (this.pressing.g) {
+        // Second g press - go to first
+        this.goToFirst();
+        clearTimeout(this.pressing.gTimeout);
+        this.pressing.g = false;
+      } else {
+        // First g press - start timer
+        this.pressing.g = true;
+        this.pressing.gTimeout = setTimeout(() => {
+          this.pressing.g = false;
+        }, 500);
+      }
+    },
+
+    updateHash(varId) {
+      if (history.replaceState) {
+        history.replaceState(null, '', `#var-${varId}`);
+      }
+    },
+
+    scrollToTop() {
+      const content = document.getElementById('variable-content');
+      if (content) {
+        const behavior = this.prefersReducedMotion ? 'auto' : 'smooth';
+        content.scrollIntoView({ behavior, block: 'start' });
+      }
+    },
+
+    focusActiveVariable() {
+      // Move focus to the active variable's heading
+      this.$nextTick(() => {
+        const titleEl = this.$refs[`varTitle${this.activeId}`];
+        if (titleEl) {
+          titleEl.focus({ preventScroll: true });
+        }
+      });
+    },
+
+    goTo(varId) {
+      this.activeId = varId;
+      this.updateHash(varId);
+      this.sidebarOpen = false;
+      this.$nextTick(() => {
+        setTimeout(() => {
+          this.scrollToTop();
+          this.focusActiveVariable();
+        }, 60);
+      });
+    },
+
+    goNext() {
+      const currentIndex = this.indexMap[this.activeId];
+      if (currentIndex !== undefined && currentIndex < this.ids.length - 1) {
+        this.goTo(this.ids[currentIndex + 1]);
+      }
+    },
+
+    goPrev() {
+      const currentIndex = this.indexMap[this.activeId];
+      if (currentIndex !== undefined && currentIndex > 0) {
+        this.goTo(this.ids[currentIndex - 1]);
+      }
+    },
+
+    goToFirst() {
+      if (this.ids.length > 0) {
+        this.goTo(this.ids[0]);
+      }
+    },
+
+    goToLast() {
+      if (this.ids.length > 0) {
+        this.goTo(this.ids[this.ids.length - 1]);
+      }
+    },
+
+    isActive(varId) {
+      return this.activeId === varId;
+    },
+
+    canGoNext() {
+      const currentIndex = this.indexMap[this.activeId];
+      return currentIndex !== undefined && currentIndex < this.ids.length - 1;
+    },
+
+    canGoPrev() {
+      const currentIndex = this.indexMap[this.activeId];
+      return currentIndex !== undefined && currentIndex > 0;
+    },
+
+    announcePosition() {
+      const currentIndex = this.indexMap[this.activeId];
+      if (currentIndex === 0) return 'First variable';
+      if (currentIndex === this.ids.length - 1) return 'Last variable';
+      return `Variable ${currentIndex + 1} of ${this.ids.length}`;
+    }
+  }));
+});
+</script>
+
+<style>
+@media print {
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print\:col-span-12 {
+    grid-column: span 12 / span 12;
+  }
+
+  .print\:shadow-none {
+    box-shadow: none !important;
+  }
+}
+</style>

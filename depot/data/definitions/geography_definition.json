@@ -1,0 +1,39 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "stateProv",
+    "type": "string",
+    "description": "State (US) or Province (Canada) of residence. Two-character abbreviation. If unknown, substitute the State or Province of the site where patient was seen for clinical care. If neither can be provided, use 'XX'. See Appendix 4.2 for valid values.",
+    "example": "WA, NU, CA, AB, XX",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "postCode",
+    "type": "string",
+    "description": "5-digit US ZIP Code or Canadian Postal Code of residence. US sites submit 5-digit ZIP code. Canadian sites submit first 3 digits (FSA code) or complete 6-digit code if allowed. For homeless patients without shelter postal code, use 'ZZZ'. Leave blank if no postal code available.",
+    "example": "99705, 98006, T2B, H0H0H0, ZZZ",
+    "value_optional": true
+  },
+  {
+    "name": "resDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date associated with residence information. Submit multiple records for patients who change residence over time.",
+    "value_optional": true
+  },
+  {
+    "name": "stateProvApprox",
+    "type": "boolean",
+    "allowed_values": {
+      "true": ["Y"],
+      "false": [""]
+    },
+    "description": "Indicates that the patient's state or province of residence was approximated based on study site location. Enter 'Y' if approximated, leave blank otherwise.",
+    "value_optional": true
+  }
+]

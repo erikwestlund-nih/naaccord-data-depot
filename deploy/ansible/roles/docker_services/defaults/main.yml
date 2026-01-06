@@ -1,0 +1,73 @@
+---
+# Docker services defaults
+
+# Repository and version
+naaccord_repo_path: /opt/naaccord/depot
+docker_compose_file: docker-compose.prod.yml
+registry: ghcr.io/jhbiostatcenter/naaccord
+version: latest
+
+# Docker compose project name
+compose_project_name: naaccord
+
+# Docker compose profiles (set per host based on group membership)
+# This determines which containers run on this server
+docker_compose_profiles: "{{ ['web', 'staging-idp'] if 'web' in group_names else ['services'] }}"
+
+# Allowed hosts configuration
+# Combine domain, localhost, and WireGuard IPs for Django ALLOWED_HOSTS
+allowed_hosts_domain: "{{ domain }}"
+allowed_hosts_localhost:
+  - localhost
+  - 127.0.0.1
+allowed_hosts_wireguard_tunnel:
+  - "{{ hostvars[groups['web'][0]]['wireguard_ip'] }}"      # Web server tunnel IP
+  - "{{ hostvars[groups['services'][0]]['wireguard_ip'] }}"  # Services server tunnel IP
+allowed_hosts_wireguard_docker:
+  - 10.101.0.5   # Services container IP on wireguard docker network
+  - 10.101.0.11  # Web container IP on wireguard docker network (web server only)
+
+# Combined allowed hosts list (merged in template)
+# Production: Update wireguard_docker IPs based on actual container assignments
+
+# Environment variables for docker-compose
+# These will be set from vault variables
+docker_env_vars:
+  REGISTRY: "{{ registry }}"
+  VERSION: "{{ version }}"
+  REDIS_PASSWORD: "{{ vault_redis_password }}"
+  DATABASE_HOST: "{% if 'services' in group_names %}172.19.0.1{% else %}10.100.0.11{% endif %}"  # Services: internal network gateway, Web: via tunnel
+  DATABASE_PORT: "3306"
+  DB_NAME: "naaccord"
+  DB_USER: "naaccord_app"
+  NAS_HOST: "{{ nas_host }}"
+  NAS_UPLOADS_PATH: "/mnt/nas/uploads"
+  NAS_SUBMISSIONS_PATH: "/mnt/nas/submissions"
+  NAS_REPORTS_PATH: "/mnt/nas/reports"
+
+# Cloudflare edge network CIDR ranges for real client IP restoration
+cloudflare_ipv4_cidrs:
+  - 103.21.244.0/22
+  - 103.22.200.0/22
+  - 103.31.4.0/22
+  - 104.16.0.0/13
+  - 104.24.0.0/14
+  - 108.162.192.0/18
+  - 131.0.72.0/22
+  - 141.101.64.0/18
+  - 162.158.0.0/15
+  - 172.64.0.0/13
+  - 173.245.48.0/20
+  - 188.114.96.0/20
+  - 190.93.240.0/20
+  - 197.234.240.0/22
+  - 198.41.128.0/17
+
+cloudflare_ipv6_cidrs:
+  - 2400:cb00::/32
+  - 2405:8100::/32
+  - 2405:b500::/32
+  - 2606:4700::/32
+  - 2803:f800::/32
+  - 2a06:98c0::/29
+  - 2c0f:f248::/32

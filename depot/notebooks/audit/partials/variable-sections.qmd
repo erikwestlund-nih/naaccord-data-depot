@@ -1,0 +1,93 @@
+```{r}
+#| echo: false
+#| results: asis
+
+cat("## Variables\n\n")
+
+# Get variable names from definition
+vars <- sapply(d$definition, function(x) x$name)
+
+for (var in vars) {
+  duckdb_file_path <- d$data_file_path
+  definition <- get_var_definition(d$definition, var)
+
+  # Get stats for this variable
+  stats <- d$db_stats$column_stats[d$db_stats$column_stats$column_name == var, ]
+
+  # Variable heading
+  cat("<div style='position: relative; margin-top: 3em;'>")
+  cat("<span style='font-size: 0.8em; color: #666; position: absolute; top: -1.5em'>Variable:</span>\n\n")
+  cat("</div>")
+  cat(sprintf("### <span style='font-family: monospace;'>%s</span>\n\n\n", var))
+
+  if (nrow(stats) == 0) {
+    # Variable exists in definition but not in data
+    cat("This variable is defined in the table definition but cannot be found in the submitted data.\n\n\n")
+  } else {
+
+    # Get variable type from definition - find the matching definition by name
+    var_def <- d$definition[sapply(d$definition, function(x) x$name == var)][[1]]
+    var_type <- if (!is.null(var_def$type)) var_def$type else "not specified"
+
+    # Calculate percentage and cardinality
+    null_pct <- stats$nulls / d$db_stats$row_count * 100
+    unique_pct <- stats$unique_values / d$db_stats$row_count * 100
+    cardinality <- if (unique_pct > 90) {
+      sprintf("High (%.1f%%)", unique_pct)
+    } else if (unique_pct > 1) {
+      sprintf("Medium (%.1f%%)", unique_pct)
+    } else {
+      sprintf("Low (%.1f%%)", unique_pct)
+    }
+
+    # Add explanatory text about the basic stats
+    cat("<div style='margin-top: 1em;'><span class='font-size: 0.9em; color: #666;'>The following table shows the basic characteristics of this variable in the submitted data. Definitions of these metrics can be found above under Column Overview.</span><br><br></div>\n\n")
+
+    # Create two-column display format
+    stats_display <- data.frame(
+      Metric = c("Type", "Missing (N)", "Missing (%)", "Unique", "Cardinality"),
+      Value = c(
+        var_type,
+        as.character(stats$nulls),
+        sprintf("%.1f", null_pct),
+        as.character(stats$unique_values),
+        cardinality
+      ),
+      stringsAsFactors = FALSE
+    )
+
+    # Display the table
+    print(kable(stats_display,
+      row.names = FALSE,
+      format = "html",
+      escape = FALSE
+    ) |>
+      kable_styling(bootstrap_options = c("hover")) |>
+      column_spec(2, monospace = TRUE, extra_css = "font-size: 0.9em;"))
+
+    cat("\n") # Add padding
+
+    # Include validation
+    cat("\n\n<br><br>\n\n")
+    cat("\n#### Validation Results\n\n")
+    cat("<span style='font-size: 0.9em; color: #666;'>Results of automated checks to verify the data meets the requirements specified in the NA-Accord data model.</span>\n\n")
+    if (nrow(stats) > 0) {
+      validation_result <- validate_submitted_file(duckdb_file_path, var, definition)
+      render_validation(validation_result, d$db_stats)
+    }
+
+    # Include summary
+    cat("\n\n<br>\n\n")
+    cat("\n#### Data Summary\n\n")
+    if (nrow(stats) > 0) {
+      summary_result <- summarize_submitted_file(duckdb_file_path, var, definition)
+      render_summary(summary_result, d$db_stats)
+    }
+  }
+
+
+  cat("\n\n<br><div style='padding-left: 33%; padding-right: 33%; color: #666;'>\n\n")
+  cat("\n---\n\n")
+  cat("\n\n</div><br>\n\n")
+}
+``` 

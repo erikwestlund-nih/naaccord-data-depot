@@ -1,0 +1,25 @@
+#
+# NA-ACCORD MariaDB Encryption Configuration
+# Managed by Ansible - DO NOT EDIT MANUALLY
+#
+
+[mysqld]
+# Encryption at rest configuration
+plugin_load_add = file_key_management
+file_key_management_filename = {{ mariadb_encryption_key_file }}
+file_key_management_encryption_algorithm = AES_CBC
+
+# Encrypt tables by default
+innodb_encrypt_tables = ON
+innodb_encrypt_log = ON
+innodb_encryption_threads = 4
+innodb_encryption_rotate_key_age = 1
+
+# Encrypt temporary files
+encrypt_tmp_disk_tables = ON
+encrypt_tmp_files = ON
+encrypt_binlog = ON
+aria_encrypt_tables = ON
+
+# Performance and security
+innodb_file_per_table = ON

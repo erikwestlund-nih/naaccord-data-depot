@@ -1,0 +1,42 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "question",
+    "type": "string",
+    "description": "Code or variable name used by cohort to indicate survey question. The value should map directly to a question that appears on the substance use questionnaire administered to patients.",
+    "example": "smoke1, drinksday, tobacco_use, alcohol_freq",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "response",
+    "type": "string",
+    "description": "Code or value used by cohort to indicate response value for question. The value should map directly to a response value that appears on the substance use questionnaire administered to patients.",
+    "example": "yes, no, 5, 1-3, never, daily"
+  },
+  {
+    "name": "responseDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date of response to the survey question; date questionnaire was administered to the patient."
+  },
+  {
+    "name": "questionLabel",
+    "type": "string",
+    "description": "Text string that provides more information about the question. Analogous to variable label used in a codebook. If available, this facilitates central mapping by the DMC.",
+    "example": "Have you ever smoked?, How many drinks per day?, Do you use tobacco?",
+    "value_optional": true,
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "responseLabel",
+    "type": "string",
+    "description": "Text string that provides more descriptive information about response value. Analogous to value labels used in a codebook. If available, this facilitates central mapping by the DMC.",
+    "example": "Never, Sometimes, Daily, 1-3 drinks per day",
+    "value_optional": true
+  }
+]

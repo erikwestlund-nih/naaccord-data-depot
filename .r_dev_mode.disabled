@@ -1,0 +1,11 @@
+# R Development Mode Configuration
+# This file enables local NAATools development
+
+# Path to local NAATools package directory
+NAATOOLS_DIR=$HOME/code/NAATools
+
+# When this file exists, scaffold_r.R will load NAATools from the local directory
+# instead of installing from GitHub. This is useful during development.
+#
+# This file should ONLY be mounted into containers when actively developing NAATools.
+# Use: docker-compose -f docker-compose.yml -f docker-compose.naatools-dev.yml up -d

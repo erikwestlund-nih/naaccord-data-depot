@@ -1,0 +1,14 @@
+{
+  "description": "Maps cohort names to their schema mapping group. Cohorts not listed use 'passthrough' (no transformation).",
+  "version": "1.0",
+  "cohort_to_group": {
+    "CWRU": "cnics",
+    "Fenway": "cnics",
+    "JHHCC": "cnics",
+    "UA - Birmingham": "cnics",
+    "UCSD": "cnics",
+    "UNC - Chapel Hill": "cnics",
+    "UW - Seattle": "cnics",
+    "Vanderbilt": "cnics"
+  }
+}

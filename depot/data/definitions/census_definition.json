@@ -1,0 +1,120 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "resDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date associated with residence. Participants can contribute multiple records representing multiple time points of residential address measurement."
+  },
+  {
+    "name": "censusTract",
+    "type": "string",
+    "description": "Census Tract associated with residence (may have leading zeros). From NA-ACCORD GENERATE tool output.",
+    "example": "4087.04",
+    "value_optional": true
+  },
+  {
+    "name": "zcta",
+    "type": "string",
+    "description": "Zip Code Tabulation Area (ZCTA). From NA-ACCORD GENERATE tool output.",
+    "example": "21093",
+    "value_optional": true
+  },
+  {
+    "name": "county",
+    "type": "string",
+    "description": "County associated with residence.",
+    "example": "Baltimore",
+    "value_optional": true,
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "state",
+    "type": "string",
+    "description": "State associated with residence.",
+    "example": "Maryland",
+    "value_optional": true,
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "mTractIncome",
+    "type": "numeric",
+    "description": "Median household income of census tract of residence.",
+    "example": "58618",
+    "value_optional": true
+  },
+  {
+    "name": "mZCTAIncome",
+    "type": "numeric",
+    "description": "Median household income of ZCTA of residence.",
+    "example": "53273",
+    "value_optional": true
+  },
+  {
+    "name": "mCountyIncome",
+    "type": "numeric",
+    "description": "Median household income of county of residence.",
+    "example": "81477",
+    "value_optional": true
+  },
+  {
+    "name": "mStateIncome",
+    "type": "numeric",
+    "description": "Median household income of State of residence.",
+    "example": "75234",
+    "value_optional": true
+  },
+  {
+    "name": "pTractEmployed",
+    "type": "numeric",
+    "description": "Proportion employed of census tract of residence.",
+    "value_optional": true
+  },
+  {
+    "name": "pZCTAEmployed",
+    "type": "numeric",
+    "description": "Proportion employed of ZCTA of residence.",
+    "value_optional": true
+  },
+  {
+    "name": "pCountyEmployed",
+    "type": "numeric",
+    "description": "Proportion employed of county of residence.",
+    "value_optional": true
+  },
+  {
+    "name": "pStateEmployed",
+    "type": "numeric",
+    "description": "Proportion employed of state of residence.",
+    "value_optional": true
+  },
+  {
+    "name": "pTractCollege",
+    "type": "numeric",
+    "description": "Proportion with college education of census tract of residence.",
+    "value_optional": true
+  },
+  {
+    "name": "pZCTACollege",
+    "type": "numeric",
+    "description": "Proportion with college education of ZCTA of residence.",
+    "value_optional": true
+  },
+  {
+    "name": "pCountyCollege",
+    "type": "numeric",
+    "description": "Proportion with college education of county of residence.",
+    "value_optional": true
+  },
+  {
+    "name": "pStateCollege",
+    "type": "numeric",
+    "description": "Proportion with college education of state of residence.",
+    "value_optional": true
+  }
+]

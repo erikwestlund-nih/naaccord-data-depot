@@ -1,0 +1,10 @@
+user_email,cohort_id,cohort_name
+admin@jh.edu,17,VACS / VACS8
+admin@jh.edu,20,MACS/WIHS Combined Cohort Study (MWCCS)
+vacs.manager@jh.edu,17,VACS / VACS8
+macs.user@jh.edu,20,MACS/WIHS Combined Cohort Study (MWCCS)
+wihs.user@jh.edu,20,MACS/WIHS Combined Cohort Study (MWCCS)
+viewer@jh.edu,17,VACS / VACS8
+viewer@jh.edu,20,MACS/WIHS Combined Cohort Study (MWCCS)
+multi.cohort@jh.edu,17,VACS / VACS8
+multi.cohort@jh.edu,20,MACS/WIHS Combined Cohort Study (MWCCS)

@@ -1,0 +1,472 @@
+{% load depot_filters %}
+<c-app-page title="Upload Precheck">
+
+    <c-page-header 
+        heading="Upload Precheck" 
+        blurb="Validate your data files before submission to ensure they meet all requirements and formatting standards" 
+    />
+
+    <!-- Description Card -->
+    <c-card class="mb-6">
+            <h3 class="text-sm font-medium text-gray-900 mb-3">About Upload Precheck</h3>
+            <p class="text-sm text-gray-600">
+                Submit a data file to precheck it against NA-ACCORD data definitions. The precheck process includes:
+            </p>
+            <ul class="mt-3 ml-6 list-disc text-sm text-gray-600 space-y-1">
+                <li><strong>Validation:</strong> Checking the format and structure against the data table definition</li>
+                <li><strong>Summarization:</strong> Generating statistics and visualizations to identify anomalies</li>
+            </ul>
+            <p class="mt-3 text-sm text-gray-600">
+                Prechecked data is processed temporarily and not permanently stored.
+            </p>
+    </c-card>
+
+    <!-- Common Issues Card -->
+    <c-card class="mb-6">
+        <h3 class="text-sm font-medium text-gray-900 mb-3">Common File Issues &amp; Solutions</h3>
+        <p class="text-sm text-gray-600 mb-4">
+            If your file fails validation, check for these common formatting problems:
+        </p>
+
+        <div class="space-y-4">
+            <div class="border-l-4 border-amber-400 bg-amber-50 p-3 rounded-r">
+                <h4 class="text-sm font-semibold text-amber-800">Quotes within quoted fields</h4>
+                <p class="text-sm text-amber-700 mt-1">
+                    If a field contains quotes inside a quoted value, the inner quotes must be escaped by doubling them.
+                </p>
+                <div class="mt-2 bg-white rounded p-2 text-xs font-mono">
+                    <span class="text-red-600">Wrong:</span> <code>"Patient said "I feel fine""</code><br>
+                    <span class="text-green-600">Correct:</span> <code>"Patient said ""I feel fine"""</code>
+                </div>
+            </div>
+
+            <div class="border-l-4 border-amber-400 bg-amber-50 p-3 rounded-r">
+                <h4 class="text-sm font-semibold text-amber-800">Commas in field values</h4>
+                <p class="text-sm text-amber-700 mt-1">
+                    Fields containing commas must be enclosed in double quotes.
+                </p>
+                <div class="mt-2 bg-white rounded p-2 text-xs font-mono">
+                    <span class="text-red-600">Wrong:</span> <code>Baltimore, MD</code><br>
+                    <span class="text-green-600">Correct:</span> <code>"Baltimore, MD"</code>
+                </div>
+            </div>
+
+            <div class="border-l-4 border-amber-400 bg-amber-50 p-3 rounded-r">
+                <h4 class="text-sm font-semibold text-amber-800">Line breaks in field values</h4>
+                <p class="text-sm text-amber-700 mt-1">
+                    Fields containing line breaks must be enclosed in double quotes. The line break will be preserved.
+                </p>
+                <div class="mt-2 bg-white rounded p-2 text-xs font-mono">
+                    <span class="text-green-600">Correct:</span> <code>"Line 1<br>&nbsp;&nbsp;Line 2"</code>
+                </div>
+            </div>
+
+            <div class="border-l-4 border-amber-400 bg-amber-50 p-3 rounded-r">
+                <h4 class="text-sm font-semibold text-amber-800">Inconsistent column counts</h4>
+                <p class="text-sm text-amber-700 mt-1">
+                    Every row must have the same number of columns as the header row. Check for extra or missing commas.
+                </p>
+            </div>
+
+            <div class="border-l-4 border-amber-400 bg-amber-50 p-3 rounded-r">
+                <h4 class="text-sm font-semibold text-amber-800">UTF-8 encoding issues</h4>
+                <p class="text-sm text-amber-700 mt-1">
+                    Save your file with UTF-8 encoding. Special characters (accents, symbols) may cause issues if saved with other encodings.
+                </p>
+            </div>
+
+            <div class="border-l-4 border-blue-400 bg-blue-50 p-3 rounded-r">
+                <h4 class="text-sm font-semibold text-blue-800">Tip: Use a text editor to inspect files</h4>
+                <p class="text-sm text-blue-700 mt-1">
+                    Open your CSV in a plain text editor (not Excel) to see the actual formatting and identify issues.
+                </p>
+            </div>
+        </div>
+    </c-card>
+
+    <!-- Form Container with Alpine.js -->
+    <div x-data="auditFormManager()">
+        <!-- Error Message Display -->
+        <div x-show="errorMessage" x-cloak class="mb-6">
+            <div class="rounded-md bg-red-50 p-4">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <c-icon icon="x-circle" family="solid" class="h-5 w-5 text-red-400" />
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-800">Upload Error</h3>
+                        <div class="mt-2 text-sm text-red-700" x-text="errorMessage"></div>
+                    </div>
+                    <div class="ml-auto pl-3">
+                        <button @click="errorMessage = ''" type="button" class="text-red-400 hover:text-red-500">
+                            <c-icon icon="x-mark" family="solid" class="h-5 w-5" />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Form -->
+        <form method="post" enctype="multipart/form-data"
+              @submit.prevent="handleSubmit">
+            {% csrf_token %}
+        
+        <c-card title="Precheck Configuration" class="mb-6">
+                <!-- Cohort Selection -->
+                <div class="mb-6">
+                    <c-input.select
+                        name="cohort_id"
+                        label="Cohort"
+                        :options="cohort_options"
+                        :value="data.cohort_id"
+                        :errors="errors"
+                        x_model="cohortId"
+                    />
+                </div>
+
+                <!-- Data File Type Selection -->
+                <div class="mb-6">
+                    <c-input.select
+                        name="data_file_type_id"
+                        label="Data File Type"
+                        :options="data_file_type_options"
+                        :value="data.data_file_type_id|default:'1'"
+                        :errors="errors"
+                        x_model="dataFileTypeId"
+                    />
+                </div>
+
+                <!-- Upload Method Selection -->
+                <div class="mb-6">
+                    <c-input.radio
+                        name="upload_method"
+                        label="Upload Method"
+                        :options="upload_method_options"
+                        :value="uploadMethod"
+                        :errors="errors"
+                        x-model="uploadMethod"
+                    />
+                </div>
+        </c-card>
+
+        <!-- File Upload Section -->
+        <div x-show="uploadMethod" class="mb-6">
+            <!-- File Upload -->
+            <div x-show="uploadMethod === 'upload'">
+                <input type="file" 
+                       id="uploaded_csv_file" 
+                       class="hidden" 
+                       accept=".csv,.txt"
+                       @change="handleFileSelect($event)">
+                <input type="hidden" name="uploaded_file_id" x-model="uploadedFileId">
+                
+                <!-- Dropzone (hidden when file selected) -->
+                <button type="button" x-show="!filename"
+                        @click="$refs.fileInput.click()"
+                        class="relative block w-full rounded-lg border-2 border-dashed border-gray-300 p-12 text-center hover:border-gray-400 focus:outline-2 focus:outline-offset-2 focus:outline-blue-700 cursor-pointer">
+                    <c-icon icon="cloud-upload" family="solid" class="mx-auto h-12 w-12 text-gray-400" />
+                    <span class="mt-2 block text-sm font-semibold text-gray-900">Upload your data file</span>
+                    <span class="mt-1 block text-sm text-gray-500">Click to select CSV or TXT files</span>
+                    <input type="file"
+                           x-ref="fileInput"
+                           class="hidden"
+                           accept=".csv,.txt"
+                           @change="handleFileSelect($event)">
+                </button>
+                
+                <!-- File Selected Display -->
+                <div x-show="filename && !uploading" x-cloak>
+                    <c-card :class="uploaded ? 'border-green-200 bg-green-50' : ''">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center flex-1 min-w-0">
+                                <c-icon :icon="uploaded ? 'check-circle' : 'document'"
+                                        family="solid"
+                                        :class="uploaded ? 'h-8 w-8 text-green-500 flex-shrink-0' : 'h-8 w-8 text-gray-400 flex-shrink-0'" />
+                                <div class="ml-3 min-w-0">
+                                    <p class="text-sm font-medium text-gray-900 truncate" x-text="filename"></p>
+                                    <p class="text-xs"
+                                       :class="uploaded ? 'text-green-700' : 'text-gray-500'"
+                                       x-text="uploaded ? 'File ready for precheck' : formatFileSize(filesize)"></p>
+                                </div>
+                            </div>
+                            <button type="button"
+                                    @click="clearFile()"
+                                    class="ml-3 px-2 py-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all cursor-pointer"
+                                    title="Clear selection">
+                                <c-icon icon="x" class="h-3 w-3" />
+                            </button>
+                        </div>
+                    </c-card>
+                </div>
+                
+                <!-- Progress Bar (replaces file info when uploading) -->
+                <div x-show="uploading" x-cloak>
+                    <c-card>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm font-medium text-gray-700">Uploading...</span>
+                            <span class="text-sm text-gray-500" x-text="uploadProgress + '%'">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                 :style="'width: ' + uploadProgress + '%'"></div>
+                        </div>
+                    </c-card>
+                </div>
+                
+            </div>
+
+            <!-- Paste Data -->
+            <div x-show="uploadMethod === 'paste'">
+                <c-card>
+                    <c-input.textarea
+                        name="data_content"
+                        label="Paste CSV Data"
+                        :value="data.data_content"
+                        :errors="errors"
+                        :rows="10"
+                        textarea_class="font-mono"
+                        placeholder="Paste your CSV data here..."
+                        x-model="pasteContent"
+                    />
+                </c-card>
+            </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-end">
+            <div x-bind:class="{'pointer-events-none opacity-50': submitting || uploading || uploadingForSubmission || (!file && !uploaded)}">
+            <c-button
+                type="submit"
+                variant="primary"
+                attrs=":disabled='submitting || uploading || uploadingForSubmission || (!file && !uploaded)'">
+                <span x-show="!submitting && !uploading && !uploadingForSubmission">
+                    <c-icon icon="magnifying-glass" family="solid" class="h-4 w-4 mr-2 inline" />
+                    Run Precheck
+                </span>
+                <span x-show="uploading || uploadingForSubmission" class="flex items-center">
+                    <c-icon icon="arrow-path" family="solid" class="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                </span>
+                <span x-show="submitting && !uploading && !uploadingForSubmission" class="flex items-center">
+                    <c-icon icon="arrow-path" family="solid" class="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                </span>
+            </c-button>
+            </div>
+        </div>
+    </form>
+
+    <script>
+function auditFormManager() {
+    return {
+        cohortId: '{{ data.cohort_id|default:"" }}',
+        dataFileTypeId: '{{ data.data_file_type_id|default:"1" }}',
+        uploadMethod: '{{ data.upload_method|default:"upload" }}',
+
+        file: null,
+        filename: '',
+        filesize: 0,
+        uploading: false,
+        uploaded: false,
+        uploadProgress: 0,
+        uploadedFileId: null,
+        pasteContent: '',
+        submitting: false,
+        uploadingForSubmission: false,
+        submitTimeout: null,
+        errorMessage: '',
+        
+        handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                this.file = file;
+                this.filename = file.name;
+                this.filesize = file.size;
+            }
+        },
+        
+        clearFile() {
+            this.file = null;
+            this.filename = '';
+            this.filesize = 0;
+            this.uploaded = false;
+            this.uploading = false;
+            this.uploadProgress = 0;
+            this.uploadedFileId = null;
+            this.submitting = false;
+            this.uploadingForSubmission = false;
+            if (this.$refs.fileInput) {
+                this.$refs.fileInput.value = '';
+            }
+        },
+
+        resetAllStates() {
+            this.uploading = false;
+            this.submitting = false;
+            this.uploadingForSubmission = false;
+            if (this.submitTimeout) {
+                clearTimeout(this.submitTimeout);
+                this.submitTimeout = null;
+            }
+        },
+        
+        uploadFile() {
+            if (!this.file) return;
+            
+            
+            this.uploading = true;
+            this.uploadProgress = 0;
+            
+            const formData = new FormData();
+            formData.append('file', this.file);
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+            formData.append('cohort_id', this.cohortId);
+            formData.append('data_file_type_id', this.dataFileTypeId);
+            
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    this.uploadProgress = Math.round((event.loaded / event.total) * 100);
+                }
+            };
+            
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.success) {
+                        this.uploaded = true;
+                        this.uploading = false;
+                        this.uploadedFileId = data.file_id;
+                        
+                        // If we're in the middle of form submission, continue with it
+                        if (this.uploadingForSubmission) {
+                            this.uploadingForSubmission = false;
+                            // Create and submit a new form with the data
+                            this.submitFormWithUploadedFile();
+                        }
+                    } else {
+                        this.resetAllStates();
+                        this.errorMessage = data.error || 'Upload failed';
+                        this.clearFile();
+                    }
+                } else {
+                    this.resetAllStates();
+                    this.errorMessage = 'Upload failed';
+                    this.clearFile();
+                }
+            };
+            
+            xhr.onerror = () => {
+                this.resetAllStates();
+                this.errorMessage = 'Upload failed';
+                this.clearFile();
+            };
+            
+            // Upload to a dedicated endpoint for precheck files
+            xhr.open('POST', '/upload-precheck/upload');
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');
+            xhr.send(formData);
+        },
+        
+        formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        },
+        
+        handleSubmit(event) {
+            if (this.submitting || this.uploading) return;
+            
+            // Validate form
+            if (!this.cohortId) {
+                this.errorMessage = 'Please select a cohort';
+                return;
+            }
+            
+            if (!this.dataFileTypeId) {
+                this.errorMessage = 'Please select a data file type';
+                return;
+            }
+            
+            if (this.uploadMethod === 'upload' && !this.uploadedFileId && !this.file) {
+                this.errorMessage = 'Please select a file to upload';
+                return;
+            }
+            
+            if (this.uploadMethod === 'paste' && !this.pasteContent) {
+                this.errorMessage = 'Please paste your data';
+                return;
+            }
+            
+            // If file is selected but not uploaded yet, upload it first
+            if (this.uploadMethod === 'upload' && this.file && !this.uploadedFileId) {
+                this.submitting = true;
+                this.uploadingForSubmission = true;
+                this.uploadFile();
+                return; // uploadFile will handle form submission after upload completes
+            }
+            
+            this.submitting = true;
+
+            // Set timeout to reset state if form submission hangs
+            this.submitTimeout = setTimeout(() => {
+                if (this.submitting) {
+                    console.warn('Form submission timeout - resetting state');
+                    this.resetAllStates();
+                    this.errorMessage = 'Processing timeout - please try again';
+                }
+            }, 30000); // 30 second timeout
+
+            event.target.submit();
+        },
+        
+        submitFormWithUploadedFile() {
+            // Create a form to submit the data
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = window.location.pathname;
+            
+            // Add CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            this.addHiddenInput(form, 'csrfmiddlewaretoken', csrfToken);
+            
+            // Add form data
+            this.addHiddenInput(form, 'cohort_id', this.cohortId);
+            this.addHiddenInput(form, 'data_file_type_id', this.dataFileTypeId);
+            this.addHiddenInput(form, 'upload_method', this.uploadMethod);
+            this.addHiddenInput(form, 'uploaded_file_id', this.uploadedFileId);
+            
+            if (this.uploadMethod === 'paste') {
+                this.addHiddenInput(form, 'data_content', this.pasteContent);
+            }
+            
+            // Set timeout to reset state if form submission hangs
+            this.submitTimeout = setTimeout(() => {
+                if (this.submitting) {
+                    console.warn('Form submission timeout - resetting state');
+                    this.resetAllStates();
+                    this.errorMessage = 'Processing timeout - please try again';
+                }
+            }, 30000); // 30 second timeout
+
+            // Submit the form
+            document.body.appendChild(form);
+            form.submit();
+        },
+        
+        addHiddenInput(form, name, value) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value || '';
+            form.appendChild(input);
+        }
+    };
+}
+    </script>
+
+</c-app-page>

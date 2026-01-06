@@ -1,0 +1,43 @@
+# Web container specific requirements
+# Includes base requirements plus web-only packages
+-r requirements-base.txt
+
+# Web-specific Django packages
+django-jsoneditor==0.2.4
+
+# HTML/CSS processing
+beautifulsoup4==4.12.3
+bleach==6.2.0
+tinycss2==1.4.0
+soupsieve==2.6
+webencodings==0.5.1
+MarkupSafe==3.0.2
+
+# Storage (S3)
+s3transfer==0.11.4
+botocore==1.37.33
+jmespath==1.0.1
+
+# Production monitoring
+prometheus_client==0.21.1
+
+# Markdown processing (for templatetags)
+markdown-it-py==3.0.0
+mdurl==0.1.2
+
+# Data processing (match services version for compatibility)
+numpy<2.0  # Pin to NumPy 1.x for pandas/pyarrow compatibility
+duckdb==0.10.0
+pandas==2.2.3
+
+# Celery (imported by depot/__init__.py - match services versions)
+celery==5.5.1
+django-celery-results==2.6.0
+kombu==5.5.2
+amqp==5.3.1
+vine==5.1.0
+billiard==4.2.1
+
+# Web server runtime (gevent for async workers)
+gevent==24.2.1
+greenlet==3.0.1

@@ -1,0 +1,40 @@
+---
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                                                              ║
+# ║   🚫🚫🚫 THIS PLAYBOOK IS PERMANENTLY DISABLED 🚫🚫🚫                        ║
+# ║                                                                              ║
+# ║   Database resets are NO LONGER ALLOWED on production systems.               ║
+# ║   The system contains real research data that cannot be recreated.           ║
+# ║                                                                              ║
+# ║   To ADD cohorts or users, use incremental commands:                         ║
+# ║     docker exec naaccord-services python manage.py seed_from_csv ...         ║
+# ║     docker exec naaccord-services python manage.py load_production_users     ║
+# ║                                                                              ║
+# ║   If you ABSOLUTELY need to reset the database (e.g., disaster recovery),    ║
+# ║   you must manually edit this file to re-enable it.                          ║
+# ║                                                                              ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+- name: DATABASE RESET IS DISABLED
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: STOP - Database reset is permanently disabled
+      ansible.builtin.fail:
+        msg: |
+
+          ╔══════════════════════════════════════════════════════════════════════════════╗
+          ║                                                                              ║
+          ║   🚫 DATABASE RESET IS PERMANENTLY DISABLED 🚫                               ║
+          ║                                                                              ║
+          ║   This playbook has been disabled to protect production data.                ║
+          ║                                                                              ║
+          ║   To add cohorts/users incrementally, use:                                   ║
+          ║     docker exec naaccord-services python manage.py seed_from_csv ...         ║
+          ║     docker exec naaccord-services python manage.py load_production_users     ║
+          ║                                                                              ║
+          ║   If you need to re-enable this playbook for disaster recovery,              ║
+          ║   you must manually edit:                                                    ║
+          ║     deploy/ansible/playbooks/database-reset.yml                              ║
+          ║                                                                              ║
+          ╚══════════════════════════════════════════════════════════════════════════════╝

@@ -1,0 +1,165 @@
+{% load static %}
+<c-app-page title="Validation Status">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+
+    <c-page-header
+        heading="{{ data_table.data_file_type.label }} Validation"
+        blurb="{{ data_file.original_filename }} • Uploaded {{ data_file.uploaded_at|timesince }} ago"
+    />
+
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <a href="{% url 'submission_table_manage' submission.id data_table.data_file_type.name %}" class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+            <c-icon icon="arrow-left" class="h-4 w-4 mr-2" />
+            Back to {{ data_table.data_file_type.label }} table
+        </a>
+        <div class="text-sm text-gray-500">
+            Submission: <span class="font-medium text-gray-900">{{ submission.cohort.name }}</span> • Protocol Year {{ submission.protocol_year.name|default:submission.protocol_year.year }}
+        </div>
+    </div>
+
+    <div class="space-y-6" x-data="validationStatus()" x-init="init()" x-cloak>
+        <div class="bg-white border border-gray-200 rounded-lg p-4 md:p-5">
+            <dl class="grid gap-4 text-sm md:grid-cols-4">
+                <div>
+                    <dt class="text-gray-500">Uploaded file</dt>
+                    <dd class="font-semibold text-gray-900 break-all">{{ data_file.original_filename }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Version</dt>
+                    <dd class="font-semibold text-gray-900">{{ data_file.version }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Size</dt>
+                    <dd class="font-semibold text-gray-900">{{ data_file.file_size|filesizeformat }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Uploaded</dt>
+                    <dd class="font-semibold text-gray-900">{{ data_file.uploaded_at|date:"F j, Y g:i A" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <div x-show="variableCount === 0 && !isComplete()" x-cloak class="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+            <div class="mx-auto h-10 w-10 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-3"></div>
+            <p class="font-medium text-blue-900">Starting validation run...</p>
+            <p class="text-sm text-blue-700 mt-1">We’ll bring you the first results the moment they’re ready.</p>
+        </div>
+
+        <div id="validation-status" x-show="isReady && (variableCount > 0 || isComplete())">
+            {% include "partials/validation_status.html" %}
+        </div>
+
+        <div x-show="showRefreshSuggestion" x-cloak class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <c-icon icon="arrow-path" class="h-5 w-5 text-blue-600" family="solid" />
+                    <div>
+                        <p class="font-medium text-blue-900">Validation Status Updated</p>
+                        <p class="text-sm text-blue-700">New results are available. Refresh the page to see the latest status.</p>
+                    </div>
+                </div>
+                <button
+                    @click="refreshPage()"
+                    class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    <c-icon icon="arrow-path" class="h-4 w-4 mr-2" family="solid" />
+                    Refresh Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {{ initial_variable_statuses|json_script:"initial-variable-statuses" }}
+    {{ summary|json_script:"validation-summary" }}
+
+    <script>
+    function validationStatus() {
+        const initialScript = document.getElementById('initial-variable-statuses');
+        const summaryScript = document.getElementById('validation-summary');
+        const initialStatuses = initialScript ? JSON.parse(initialScript.textContent) : [];
+        const summarySnapshot = summaryScript ? JSON.parse(summaryScript.textContent) : {};
+        if (initialScript) initialScript.remove();
+        if (summaryScript) summaryScript.remove();
+
+        return {
+            loading: false,
+            isReady: false,
+            status: '{{ validation_run.status }}',
+            variableCount: {{ validation_variables|length }},
+            initialStatuses,
+            summarySnapshot,
+            showRefreshSuggestion: false,
+            checkInterval: null,
+
+            init() {
+                this.isReady = true;
+                if (!this.isComplete()) {
+                    this.startChecking();
+                }
+            },
+
+            isComplete() {
+                return ['completed', 'failed', 'partial'].includes(this.status);
+            },
+
+            startChecking() {
+                this.checkInterval = setInterval(() => {
+                    this.checkForUpdates();
+                }, 5000);
+            },
+
+            stopChecking() {
+                if (this.checkInterval) {
+                    clearInterval(this.checkInterval);
+                    this.checkInterval = null;
+                }
+            },
+
+            async checkForUpdates() {
+                try {
+                    const response = await fetch('{% url "submission_validation_status_json" submission.id data_table.data_file_type.name validation_run.id %}', { cache: 'no-store' });
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const data = await response.json();
+
+                    if (this.shouldRefresh(data)) {
+                        window.location.replace(window.location.href);
+                    }
+                } catch (error) {
+                    console.error('Error checking status:', error);
+                }
+            },
+
+            refreshPage() {
+                window.location.reload();
+            },
+
+            shouldRefresh(data) {
+                if (!data || !Array.isArray(data.variables)) {
+                    return false;
+                }
+
+                const statuses = data.variables.map(v => v.status);
+                const changedCount = statuses.some((status, idx) => status !== this.initialStatuses[idx]);
+
+                if (changedCount) {
+                    this.initialStatuses = statuses;
+                    this.status = data.status;
+                    this.summarySnapshot = Object.assign({}, this.summarySnapshot, data.summary);
+                    return true;
+                }
+
+                if (this.status !== data.status) {
+                    this.status = data.status;
+                    this.summarySnapshot = Object.assign({}, this.summarySnapshot, data.summary);
+                    return true;
+                }
+
+                return false;
+            }
+        }
+    }
+    </script>
+</c-app-page>

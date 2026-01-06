@@ -1,0 +1,70 @@
+[
+  {
+    "name": "cohortPatientId",
+    "type": "id",
+    "description": "De-identified patient identification code.",
+    "validators": ["in_file:patient:cohortPatientId"]
+  },
+  {
+    "name": "medicationName",
+    "type": "string",
+    "description": "Generic medication name. For historical ARV medications where specific medication is unknown, use codes like 'Hx ARV Treatment, Med unknown', 'Hx PI Treatment, Med unknown', 'Hx NNRTI Treatment, Med unknown', 'Hx NRTI Treatment, Med unknown', 'Hx EI Treatment, Med unknown', 'Hx Fusion Treatment, Med unknown', 'Hx INSTI Treatment, Med unknown'.",
+    "example": "zidovudine, EFAVIRENZ, LAMIVUDINE, ESTRADIOL",
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "startDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date patient started course of therapy with medication. Apply date rules in Section 2.5 for fuzzy or unknown dates."
+  },
+  {
+    "name": "stopDate",
+    "type": "date",
+    "date_format": "YYYY-MM-DD",
+    "description": "Date patient discontinued the medication. Apply date rules in Section 2.5 for fuzzy or unknown dates."
+  },
+  {
+    "name": "form",
+    "type": "string",
+    "description": "Form that medication is given.",
+    "example": "Pill, liquid, patch, tablet",
+    "value_optional": true,
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "strength",
+    "type": "string",
+    "description": "The amount of drug in the dosage form.",
+    "example": "300, 20, 150, 2",
+    "value_optional": true
+  },
+  {
+    "name": "units",
+    "type": "string",
+    "description": "Units of medication strength.",
+    "example": "mg, mg/ml, cc",
+    "value_optional": true
+  },
+  {
+    "name": "route",
+    "type": "string",
+    "description": "How medication is taken.",
+    "example": "po, IM, SQ, 'by mouth'",
+    "value_optional": true,
+    "summarizers": ["bar_chart"]
+  },
+  {
+    "name": "sig",
+    "type": "string",
+    "description": "The prescribed dose and how often it is taken. This field is required. Describes how much medication to take, when to take it, how often to take it, and how to use it.",
+    "example": "2BID, TID, Q8H, 'Take 2 pills twice a day'"
+  },
+  {
+    "name": "source",
+    "type": "string",
+    "description": "Source of medication. Use Section 2.7 to define source of medication.",
+    "example": "M1, M2, M3, M4",
+    "summarizers": ["bar_chart"]
+  }
+]
